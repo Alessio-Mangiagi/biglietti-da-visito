@@ -1,8 +1,9 @@
 import type { ContactInput } from '@cardvault/shared';
-import { MagnifyingGlass, PencilSimple, Scan, UploadSimple } from '@phosphor-icons/react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { AddressBookTabs, Cards, MagnifyingGlass, PencilSimple, Scan, UploadSimple } from '@phosphor-icons/react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { BusinessCard } from '../components/BusinessCard';
+import { Rolodex } from '../components/Rolodex';
 import { errorMessage } from '../lib/api';
 import { useTags, useWallet, type SearchParams } from '../lib/contacts';
 import type { OutboxItem } from '../lib/idb';
@@ -38,16 +39,44 @@ export function useOutbox() {
   return items;
 }
 
+type WalletView = 'rolodex' | 'stack';
+
+/** Remembered per device; the rotary card file is the default. */
+function useWalletView(): [WalletView, (v: WalletView) => void] {
+  const [view, setView] = useState<WalletView>(() => {
+    try {
+      return localStorage.getItem('cv-wallet-view') === 'stack' ? 'stack' : 'rolodex';
+    } catch {
+      return 'rolodex';
+    }
+  });
+  const set = useCallback((v: WalletView) => {
+    setView(v);
+    try {
+      localStorage.setItem('cv-wallet-view', v);
+    } catch {
+      /* storage blocked: the choice lasts for this visit */
+    }
+  }, []);
+  return [view, set];
+}
+
 export function WalletPage() {
   const navigate = useNavigate();
   const { user } = useSession();
   const [filter, setFilter] = useState<SearchParams>({});
-  const wallet = useWallet(filter);
+  const [view, setView] = useWalletView();
+  // the card file is alphabetical, like the paper one; the stack shows the newest first
+  const wallet = useWallet(view === 'rolodex' ? { ...filter, sort: 'name', dir: 'asc' } : filter);
   const tags = useTags();
   const pending = useOutbox();
   const [q, setQ] = useState('');
 
   const contacts = wallet.data?.pages.flatMap((p) => p.items) ?? [];
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = wallet;
+  const loadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
   const total = wallet.data?.pages[0]?.total ?? 0;
   const offline = wallet.data?.pages[0]?.offline;
   const filtered = Object.keys(filter).length > 0;
@@ -153,24 +182,42 @@ export function WalletPage() {
           )
         ) : (
           <>
-            <div className="wallet">
-              {contacts.map((c, i) => (
-                <Link
-                  key={c.id}
-                  to={`/contatti/${c.id}`}
-                  viewTransition
-                  className="wallet-item appear"
-                  style={{ ['--i' as string]: Math.min(i, 8), viewTransitionName: `card-${c.id}` }}                >
-                  <BusinessCard contact={c} />
-                </Link>
-              ))}
-            </div>
-            {wallet.hasNextPage && (
-              <div className="pager">
-                <button type="button" className="btn btn-secondary" disabled={wallet.isFetchingNextPage} onClick={() => void wallet.fetchNextPage()}>
-                  {wallet.isFetchingNextPage ? 'Caricamento…' : 'Mostra altri'}
+            <div className="spread" style={{ marginBottom: '0.5rem' }}>
+              <span className="label">{view === 'rolodex' ? 'In ordine alfabetico' : 'Dal più recente'}</span>
+              <div className="view-switch" role="group" aria-label="Vista dei biglietti">
+                <button type="button" aria-pressed={view === 'rolodex'} onClick={() => setView('rolodex')}>
+                  <AddressBookTabs size={16} /> Schedario
+                </button>
+                <button type="button" aria-pressed={view === 'stack'} onClick={() => setView('stack')}>
+                  <Cards size={16} /> Pila
                 </button>
               </div>
+            </div>
+            {view === 'rolodex' ? (
+              <Rolodex contacts={contacts} onNearEnd={loadMore} />
+            ) : (
+              <>
+                <div className="wallet">
+                  {contacts.map((c, i) => (
+                    <Link
+                      key={c.id}
+                      to={`/contatti/${c.id}`}
+                      viewTransition
+                      className="wallet-item appear"
+                      style={{ ['--i' as string]: Math.min(i, 8), viewTransitionName: `card-${c.id}` }}
+                    >
+                      <BusinessCard contact={c} />
+                    </Link>
+                  ))}
+                </div>
+                {wallet.hasNextPage && (
+                  <div className="pager">
+                    <button type="button" className="btn btn-secondary" disabled={wallet.isFetchingNextPage} onClick={() => void wallet.fetchNextPage()}>
+                      {wallet.isFetchingNextPage ? 'Caricamento…' : 'Mostra altri'}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </>
         )}

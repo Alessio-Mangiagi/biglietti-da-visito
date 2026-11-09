@@ -10,7 +10,9 @@ const PAGE_SIZE = 30;
 
 /** Wallet: newest first, infinite. Page 1 is mirrored in IndexedDB for offline use. */
 export function useWallet(params: SearchParams = {}) {
-  const isDefault = !Object.values(params).some((v) => v !== undefined && v !== '');
+  // no filters (sorting alone still counts as the plain wallet): mirrored offline, per order
+  const isDefault = !Object.entries(params).some(([k, v]) => k !== 'sort' && k !== 'dir' && v !== undefined && v !== '');
+  const cacheKey = `${WALLET_CACHE}:${params.sort ?? 'createdAt'}`;
   return useInfiniteQuery({
     queryKey: ['contacts', 'wallet', params],
     initialPageParam: 1,
@@ -23,10 +25,10 @@ export function useWallet(params: SearchParams = {}) {
           page: pageParam,
           pageSize: PAGE_SIZE,
         });
-        if (isDefault && pageParam === 1) void kvSet(WALLET_CACHE, page);
+        if (isDefault && pageParam === 1) void kvSet(cacheKey, page);
         return { ...page, offline: false };
       } catch (err) {
-        const cached = err instanceof NetworkError && isDefault && pageParam === 1 ? await kvGet<Page<Contact>>(WALLET_CACHE) : undefined;
+        const cached = err instanceof NetworkError && isDefault && pageParam === 1 ? await kvGet<Page<Contact>>(cacheKey) : undefined;
         if (cached) return { ...cached, offline: true };
         throw err;
       }
@@ -60,7 +62,7 @@ export function useContact(id: string | undefined) {
           const hit = data?.pages.flatMap((p) => p.items).find((c) => c.id === id);
           if (hit) return hit;
         }
-        const cached = await kvGet<Page<Contact>>(WALLET_CACHE);
+        const cached = (await kvGet<Page<Contact>>(`${WALLET_CACHE}:createdAt`)) ?? (await kvGet<Page<Contact>>(`${WALLET_CACHE}:name`));
         const hit = cached?.items.find((c) => c.id === id);
         if (hit) return hit;
         throw err;

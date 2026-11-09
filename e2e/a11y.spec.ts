@@ -38,7 +38,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await audit(page, name);
     }
     await page.goto('/');
-    await page.getByRole('link', { name: /Marta Colombo/ }).click();
+    await page.getByRole('button', { name: /Marta Colombo.*Apri il contatto/ }).click();
     await expect(page.getByRole('button', { name: 'Rubrica' })).toBeVisible();
     await audit(page, 'detail');
   });

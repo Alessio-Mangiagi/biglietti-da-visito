@@ -129,7 +129,20 @@ for (const [phone, device] of Object.entries(PHONES)) {
 
       await page.goto('/');
       await expect(page.getByRole('heading', { name: 'Il tuo wallet' })).toBeVisible();
-      await check('04-wallet');
+      await check('04-wallet-schedario');
+      // turn the drum one card (Bianchi → Colombo) with a vertical drag, as on a phone
+      const drum = page.getByRole('group', { name: /Biglietti: trascina/ });
+      await drum.scrollIntoViewIfNeeded();
+      const box = (await drum.boundingBox())!;
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4 - 70, { steps: 8 });
+      await page.mouse.up();
+      await expect(page.getByRole('button', { name: /Marta Colombo.*Apri il contatto/ })).toBeVisible();
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${shots}/04b-schedario-ruotato.png` });
+      await page.getByRole('button', { name: 'Pila' }).click();
+      await check('04c-wallet-pila');
       await page.getByRole('link', { name: /Cosedil.*Marta Colombo/ }).click();
       await expect(page.getByRole('button', { name: 'Rubrica' })).toBeVisible();
       await check('05-dettaglio');
