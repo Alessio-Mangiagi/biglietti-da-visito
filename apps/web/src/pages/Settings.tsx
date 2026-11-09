@@ -156,7 +156,6 @@ export function SettingsPage() {
               type="button"
               role="radio"
               aria-checked={theme === t}
-              aria-pressed={theme === t}
               className="chip"
               onClick={() => {
                 setTheme(t);

@@ -258,7 +258,7 @@ function Photos({ contact }: { contact: Contact }) {
         {contact.hasFront && contact.hasBack && (
           <div className="photo-tabs" role="tablist">
             {(['front', 'back'] as const).map((s) => (
-              <button key={s} type="button" role="tab" className="chip" aria-selected={side === s} aria-pressed={side === s} onClick={() => setSide(s)}>
+              <button key={s} type="button" role="tab" className="chip" aria-selected={side === s} onClick={() => setSide(s)}>
                 {s === 'front' ? 'Fronte' : 'Retro'}
               </button>
             ))}

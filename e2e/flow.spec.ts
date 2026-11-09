@@ -54,7 +54,7 @@ test('register, scan a card with on-device OCR, save it and find it', async ({ p
 
   // ---- wallet shows the card
   await page.goto('/');
-  await expect(page.getByRole('link', { name: /Marta Colombo, COSEDIL/i })).toBeVisible();
+  await expect(page.getByRole('link', { name: /COSEDIL.*Marta Colombo/i })).toBeVisible();
   await page.screenshot({ path: `test-results/wallet-${info.project.name}.png`, fullPage: true });
   expect(cspErrors, 'CSP violations (OCR must run under the production policy)').toEqual([]);
 });

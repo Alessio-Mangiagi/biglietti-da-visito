@@ -216,7 +216,7 @@ export function SearchPage() {
             <button
               type="button"
               className="btn btn-ghost btn-sm"
-              aria-label={get('dir') === 'desc' ? 'Ordine decrescente' : 'Ordine crescente'}
+              aria-label={get('dir') === 'desc' ? 'Z→A, ordine decrescente' : 'A→Z, ordine crescente'}
               onClick={() => update({ dir: get('dir') === 'desc' ? '' : 'desc' })}
             >
               {get('dir') === 'desc' ? 'Z→A' : 'A→Z'}

@@ -160,9 +160,7 @@ export function WalletPage() {
                   to={`/contatti/${c.id}`}
                   viewTransition
                   className="wallet-item appear"
-                  style={{ ['--i' as string]: Math.min(i, 8), viewTransitionName: `card-${c.id}` }}
-                  aria-label={`${[c.firstName, c.lastName].filter(Boolean).join(' ') || c.company}${c.company ? `, ${c.company}` : ''}`}
-                >
+                  style={{ ['--i' as string]: Math.min(i, 8), viewTransitionName: `card-${c.id}` }}                >
                   <BusinessCard contact={c} />
                 </Link>
               ))}

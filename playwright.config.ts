@@ -11,6 +11,8 @@ export default defineConfig({
   timeout: 120_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
+  // the vite preview proxy occasionally resets a keep-alive socket on Windows
+  retries: 1,
   workers: 1,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {

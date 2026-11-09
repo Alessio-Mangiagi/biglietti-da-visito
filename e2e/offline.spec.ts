@@ -25,5 +25,5 @@ test('a contact saved offline is queued and synced when the network returns', as
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await expect(page.getByRole('heading', { name: 'Da sincronizzare' })).toBeHidden({ timeout: 15_000 });
-  await expect(page.getByRole('link', { name: /Paolo Senzarete, Cantiere Galleria/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Cantiere Galleria.*Paolo Senzarete/ })).toBeVisible();
 });

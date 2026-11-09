@@ -23,6 +23,9 @@
   --text-soft: #6b6e73;
   --primary: var(--blue);
   --primary-hover: var(--blue-hover);
+  /* filled buttons: white text needs >= 4.5:1 in both themes */
+  --btn-bg: var(--blue);
+  --btn-bg-hover: var(--blue-hover);
   --on-primary: #ffffff;
   --focus: #198fd9;
 
@@ -60,9 +63,11 @@
     --text-strong: #f2f3f5;
     --text-muted: #c3c6cb;
     --text-soft: #9a9ea5;
-    --primary: #198fd9;
-    --primary-hover: #3aa2e3;
-    --ice: #23364a;
+    --primary: #3aa2e3;
+    --primary-hover: #5cb3ea;
+    --btn-bg: #1477b8;
+    --btn-bg-hover: #11699f;
+    --ice: #1c2b3b;
     --warning-bg: #3a2f1c;
     --warning: #f0b45a;
     --green-text: #7fcf93;
@@ -84,9 +89,11 @@
   --text-strong: #f2f3f5;
   --text-muted: #c3c6cb;
   --text-soft: #9a9ea5;
-  --primary: #198fd9;
-  --primary-hover: #3aa2e3;
-  --ice: #23364a;
+  --primary: #3aa2e3;
+  --primary-hover: #5cb3ea;
+    --btn-bg: #1477b8;
+    --btn-bg-hover: #11699f;
+  --ice: #1c2b3b;
   --warning-bg: #3a2f1c;
   --warning: #f0b45a;
   --green-text: #7fcf93;
@@ -211,11 +218,11 @@ button {
   transform: none;
 }
 .btn-primary {
-  background: var(--primary);
+  background: var(--btn-bg);
   color: var(--on-primary);
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--primary-hover);
+  background: var(--btn-bg-hover);
   transform: translateY(-1px);
 }
 .btn-secondary {
@@ -224,7 +231,8 @@ button {
   color: var(--primary);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: var(--primary);
+  background: var(--btn-bg);
+  border-color: var(--btn-bg);
   color: var(--on-primary);
 }
 .btn-ghost {
@@ -441,7 +449,9 @@ button {
   cursor: pointer;
   white-space: nowrap;
 }
-.chip[aria-pressed='true'] {
+.chip[aria-pressed='true'],
+.chip[aria-checked='true'],
+.chip[aria-selected='true'] {
   background: var(--ice);
   border-color: var(--primary);
   color: var(--primary);
@@ -1381,5 +1391,5 @@ dialog.modal[open] {
 .topnav a.btn-primary,
 .topnav a.btn-primary[aria-current='page'] {
   color: var(--on-primary);
-  background: var(--primary);
+  background: var(--btn-bg);
 }
