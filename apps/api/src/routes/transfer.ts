@@ -15,6 +15,7 @@ import { findDuplicates, getContact, insertContact, searchContacts } from '../re
 import { getImage } from '../repo/images';
 import { IdParams } from './contacts';
 
+export const VCARD_SCOPE = 'vcard-download';
 const MAX_EXPORT = 5000;
 const MAX_IMPORT = 2000;
 
@@ -45,6 +46,23 @@ export function attachment(name: string): string {
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
+
+/** Unauthenticated route: the signed token in the URL is the credential. */
+export async function publicVCardRoutes(app: FastifyInstance) {
+  const { db } = app.deps;
+  app.get('/public/vcard/:token', async (req, reply) => {
+    const { token } = parse(z.object({ token: z.string().max(2000) }), req.params);
+    const claim = await app.deps.tokens.verifyScoped(token, VCARD_SCOPE);
+    const c = claim ? await getContact(db, claim.userId, claim.resource) : null;
+    if (!c) throw notFound('Link scaduto o contatto');
+    return reply
+      .header('content-type', 'text/vcard; charset=utf-8')
+      .header('content-disposition', attachment(`${displayName(c)}.vcf`).replace(/^attachment/, 'inline'))
+      .header('cache-control', 'no-store')
+      .header('referrer-policy', 'no-referrer')
+      .send(toVCard(c, '3.0', { uid: c.id, rev: c.updatedAt }));
+  });
+}
 
 export async function transferRoutes(app: FastifyInstance) {
   const { db, config } = app.deps;
@@ -91,6 +109,17 @@ export async function transferRoutes(app: FastifyInstance) {
       .header('content-type', 'text/vcard; charset=utf-8')
       .header('content-disposition', attachment(`${displayName(c)}.vcf`))
       .send(toVCard(c, version, { uid: c.id, rev: c.updatedAt, photoJpegBase64 }));
+  });
+
+  /**
+   * iOS only adds a contact from a vCard opened by top-level navigation (a blob download
+   * lands in Files). The page asks for a 2-minute link, then navigates to it.
+   */
+  app.post('/contacts/:id/vcard-link', async (req) => {
+    const { id } = parse(IdParams, req.params);
+    if (!(await getContact(db, req.userId, id))) throw notFound('Contatto');
+    const token = await app.deps.tokens.signScoped(req.userId, VCARD_SCOPE, id, 120);
+    return { url: `/api/public/vcard/${token}` };
   });
 
   app.post('/contacts/import', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req) => {

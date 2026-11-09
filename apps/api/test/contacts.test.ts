@@ -196,6 +196,22 @@ describe('transfer', () => {
     expect(imp.json()).toEqual({ created: 1, skipped: 1, errors: [] });
   });
 
+  it('opens a vCard through a short-lived signed link (iPhone)', async () => {
+    const { contact } = await create({ firstName: 'Link', lastName: 'Firmato' });
+    const link = await ctx.app.inject({ method: 'POST', url: `/api/contacts/${contact.id}/vcard-link`, headers: auth(token) });
+    const { url } = link.json();
+    const res = await ctx.app.inject({ method: 'GET', url });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-disposition']).toMatch(/^inline/);
+    expect(res.body).toContain('FN:Link Firmato');
+    const other = await registerUser(ctx.app);
+    const forged = await ctx.app.inject({ method: 'POST', url: `/api/contacts/${contact.id}/vcard-link`, headers: auth(other.token) });
+    expect(forged.statusCode).toBe(404);
+    expect((await ctx.app.inject({ method: 'GET', url: '/api/public/vcard/abc' })).statusCode).toBe(404);
+    // an access token is not accepted as a download token
+    expect((await ctx.app.inject({ method: 'GET', url: `/api/public/vcard/${token}` })).statusCode).toBe(404);
+  });
+
   it('serves a single vCard 3.0 for the phone address book', async () => {
     const { contact } = await create({ firstName: 'Nicolò', lastName: 'Bò' });
     const res = await ctx.app.inject({ method: 'GET', url: `/api/contacts/${contact.id}/vcard`, headers: auth(token) });

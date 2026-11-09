@@ -31,6 +31,28 @@ export class AccessTokens {
     }
   }
 
+  /** Short-lived capability URL token, e.g. to open a vCard by top-level navigation (iOS). */
+  signScoped(userId: string, scope: string, resource: string, ttlSeconds: number): Promise<string> {
+    return new SignJWT({ scope, res: resource })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(userId)
+      .setIssuer(ISSUER)
+      .setAudience(scope)
+      .setIssuedAt()
+      .setExpirationTime(`${ttlSeconds}s`)
+      .sign(this.key);
+  }
+
+  async verifyScoped(token: string, scope: string): Promise<{ userId: string; resource: string } | null> {
+    try {
+      const { payload } = await jwtVerify(token, this.key, { issuer: ISSUER, audience: scope, algorithms: ['HS256'] });
+      if (typeof payload.sub !== 'string' || typeof payload.res !== 'string') return null;
+      return { userId: payload.sub, resource: payload.res };
+    } catch {
+      return null;
+    }
+  }
+
   get ttl() {
     return this.ttlSeconds;
   }

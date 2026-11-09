@@ -24,7 +24,8 @@ export async function migrate(db: Db, log: (msg: string) => void = () => {}): Pr
       .filter((f) => /^\d+_.+\.sql$/.test(f))
       .sort();
     for (const file of files) {
-      const sql = readFileSync(join(MIGRATIONS_DIR, file), 'utf8');
+      // CRLF → LF: same checksum on Windows and Linux checkouts
+      const sql = readFileSync(join(MIGRATIONS_DIR, file), 'utf8').replace(/\r\n/g, '\n');
       const checksum = createHash('sha256').update(sql).digest('hex');
       const prev = done.get(file);
       if (prev) {

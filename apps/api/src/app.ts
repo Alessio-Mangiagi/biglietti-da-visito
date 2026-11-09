@@ -13,7 +13,7 @@ import { accountRoutes } from './routes/account';
 import { authRoutes } from './routes/auth';
 import { contactRoutes } from './routes/contacts';
 import { imageRoutes } from './routes/images';
-import { transferRoutes } from './routes/transfer';
+import { publicVCardRoutes, transferRoutes } from './routes/transfer';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -54,6 +54,7 @@ export async function buildApp(
           },
     trustProxy: config.TRUST_PROXY,
     bodyLimit: 256 * 1024,
+    routerOptions: { maxParamLength: 1000 }, // signed tokens travel in the path
   });
 
   const deps: Deps = {
@@ -130,6 +131,7 @@ export async function buildApp(
   });
 
   await app.register(authRoutes, { prefix: '/api/auth' });
+  await app.register(publicVCardRoutes, { prefix: '/api' });
   await app.register(async (scoped) => {
     scoped.addHook('onRequest', scoped.authenticate);
     await scoped.register(contactRoutes);

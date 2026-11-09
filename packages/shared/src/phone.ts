@@ -1,4 +1,5 @@
-import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js/max';
+// 'min' metadata: enough to validate and format; the OCR parser loads 'max' for number types
+import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js/min';
 
 export const DEFAULT_COUNTRY: CountryCode = 'IT';
 
@@ -13,9 +14,4 @@ export function toE164(value: string, country: CountryCode = DEFAULT_COUNTRY): s
 export function formatPhone(value: string, country: CountryCode = DEFAULT_COUNTRY): string {
   const parsed = parsePhoneNumberFromString(value, country);
   return parsed && parsed.isPossible() ? parsed.formatInternational() : value.trim();
-}
-
-export function isMobile(value: string, country: CountryCode = DEFAULT_COUNTRY): boolean {
-  const parsed = parsePhoneNumberFromString(value, country);
-  return parsed?.getType() === 'MOBILE';
 }
