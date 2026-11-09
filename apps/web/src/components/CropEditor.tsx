@@ -98,7 +98,7 @@ export function CropEditor({ image, quad, detected, onChange, onRotate, onAuto, 
           ))}
         </svg>
       </div>
-      <div className="spread">
+      <div className="spread crop-actions">
         <div className="inline">
           <button type="button" className="btn btn-ghost btn-sm" onClick={onRotate}>
             <ArrowClockwise size={18} /> Ruota

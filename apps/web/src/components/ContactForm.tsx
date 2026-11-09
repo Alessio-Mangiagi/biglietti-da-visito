@@ -73,7 +73,7 @@ export function ContactForm({ value, onChange, uncertain = new Set(), errors = {
           onChange={(phones) => set('phones', phones, 'phones')}
           blank={{ type: 'mobile' as PhoneType, value: '' }}
           render={(p, update) => (
-            <div className="row" style={{ gridTemplateColumns: '8.5rem 1fr' }}>
+            <div className="pair">
               <select className="select" value={p.type} onChange={(e) => update({ ...p, type: e.target.value as PhoneType })} aria-label="Tipo di telefono">
                 {PHONE_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -94,7 +94,7 @@ export function ContactForm({ value, onChange, uncertain = new Set(), errors = {
           onChange={(socials) => set('socials', socials, 'socials')}
           blank={{ network: 'linkedin' as SocialNetwork, value: '' }}
           render={(s, update) => (
-            <div className="row" style={{ gridTemplateColumns: '8.5rem 1fr' }}>
+            <div className="pair">
               <select className="select" value={s.network} onChange={(e) => update({ ...s, network: e.target.value as SocialNetwork })} aria-label="Social network">
                 {SOCIAL_NETWORKS.map((n) => (
                   <option key={n} value={n}>
@@ -288,7 +288,7 @@ function TagsField({ tags, onChange }: { tags: string[]; onChange: (t: string[])
           {tags.map((t) => (
             <span key={t} className="chip" aria-pressed="true">
               {t}
-              <button type="button" className="icon-btn" style={{ width: 24, height: 24 }} aria-label={`Rimuovi tag ${t}`} onClick={() => onChange(tags.filter((x) => x !== t))}>
+              <button type="button" className="icon-btn chip-remove" aria-label={`Rimuovi tag ${t}`} onClick={() => onChange(tags.filter((x) => x !== t))}>
                 <X size={14} />
               </button>
             </span>

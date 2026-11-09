@@ -1393,3 +1393,56 @@ dialog.modal[open] {
   color: var(--on-primary);
   background: var(--btn-bg);
 }
+
+/* ---- small-phone hardening (iPhone SE 320 px)
+   Grid tracks default to min-content: a long unbreakable line (company name, QR canvas)
+   would widen the whole column past the screen. */
+.stack,
+.stack-sm,
+.wallet,
+.detail-hero {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* the QR library writes width/height inline: keep it inside its card */
+.qr canvas {
+  width: min(70vw, 260px) !important;
+  height: auto !important;
+}
+/* a button label never splits over two lines (icon stays centred on it) */
+.btn {
+  white-space: nowrap;
+}
+/* toolbars wrap as a whole instead */
+.spread,
+.inline {
+  flex-wrap: wrap;
+}
+/* remove (×) inside a chip: small glyph, 36 px touch area that bleeds into the chip padding */
+.chip-remove {
+  width: 36px;
+  height: 36px;
+  margin: -6px -12px -6px -4px;
+}
+@media (max-width: 479px) {
+  /* crop: tools on one row, the main action full width below */
+  .crop-actions > .btn-primary {
+    flex: 1 1 100%;
+  }
+  /* search results: room for the name before the first tag */
+}
+@media (max-width: 399px) {
+  .result .tag {
+    display: none;
+  }
+}
+/* type + value (phone, social): side by side, stacked on narrow phones */
+.pair {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 8rem minmax(0, 1fr);
+}
+@media (max-width: 420px) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
