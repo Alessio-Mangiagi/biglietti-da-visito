@@ -1,5 +1,26 @@
 # Deploy di CardVault
 
+## Opzione rapida: Vercel + Neon (prova)
+
+`vercel.json` nella radice pubblica la PWA come sito statico e l'API Fastify come Vercel Function
+su `/api` (stesso dominio: niente CORS, cookie validi su iPhone). Il database è PostgreSQL su Neon.
+
+1. Vercel → progetto collegato al repo → **Settings → Build & Deployment**: *Root Directory* vuoto
+   (radice del repo), *Framework Preset* **Other**. Install e build sono già in `vercel.json`.
+2. **Storage → Create Database → Neon** (regione Frankfurt), collegalo al progetto: imposta
+   `DATABASE_URL`/`POSTGRES_URL` da solo. Le tabelle si creano al primo avvio dell'API.
+3. **Settings → Environment Variables** (Production e Preview):
+   - `JWT_SECRET` → `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`
+   - `IMAGE_ENCRYPTION_KEY` → `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+     (conservala: senza non si decifrano le foto)
+   - facoltative: `SMTP_URL`, `MAIL_FROM` per le email di reset
+4. **Redeploy**. Verifica: `https://<progetto>.vercel.app/api/health` → `{"ok":true}`.
+   Se risponde 503 `NOT_CONFIGURED`, manca il database o una variabile (vedi i log della funzione).
+
+Limiti rispetto ai due server: rate limit per istanza (non globale), log solo nella dashboard Vercel.
+
+## Opzione completa: due server
+
 Due server Ubuntu 24.04 (qualsiasi VPS: Hetzner, OVH, Aruba…), possibilmente nello stesso data center UE
 con rete privata tra loro.
 

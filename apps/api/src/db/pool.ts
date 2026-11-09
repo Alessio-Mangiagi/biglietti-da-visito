@@ -13,8 +13,12 @@ export function createPool(config: Pick<Config, 'DATABASE_URL' | 'DATABASE_SSL' 
       : config.DATABASE_SSL === 'require'
         ? { rejectUnauthorized: false }
         : { rejectUnauthorized: true, ca: config.databaseCa };
+  // TLS is configured explicitly below; sslmode/channel_binding in hosted URLs (Neon)
+  // would otherwise override it with different semantics
+  const url = new URL(config.DATABASE_URL);
+  for (const k of ['sslmode', 'sslrootcert', 'channel_binding']) url.searchParams.delete(k);
   const pool = new pg.Pool({
-    connectionString: config.DATABASE_URL,
+    connectionString: url.toString(),
     ssl,
     max: config.DATABASE_POOL_MAX,
     idleTimeoutMillis: 30_000,

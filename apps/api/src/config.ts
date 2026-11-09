@@ -49,7 +49,29 @@ export interface Config extends Env {
   imageKey: Buffer;
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+/**
+ * On Vercel the platform provides the public URL and the Neon integration provides
+ * POSTGRES_URL/DATABASE_URL: fill the gaps so only the secrets must be set by hand.
+ */
+function withPlatformDefaults(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  if (!env.VERCEL) return env;
+  const host = env.VERCEL_PROJECT_PRODUCTION_URL ?? env.VERCEL_URL;
+  const origins = [env.VERCEL_PROJECT_PRODUCTION_URL, env.VERCEL_URL, env.VERCEL_BRANCH_URL]
+    .filter(Boolean)
+    .map((h) => `https://${h}`);
+  return {
+    NODE_ENV: 'production',
+    TRUST_PROXY: 'true',
+    ...env,
+    DATABASE_URL: env.DATABASE_URL ?? env.POSTGRES_URL,
+    APP_URL: env.APP_URL ?? (host ? `https://${host}` : undefined),
+    // previews have their own URL: let their refresh requests through the origin check
+    CORS_ORIGINS: env.CORS_ORIGINS ?? (origins.length ? [...new Set(origins)].join(',') : undefined),
+  };
+}
+
+export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
+  const env = withPlatformDefaults(rawEnv);
   const parsed = EnvSchema.safeParse(env);
   if (!parsed.success) {
     const msg = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
