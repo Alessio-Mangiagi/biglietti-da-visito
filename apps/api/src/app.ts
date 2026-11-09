@@ -5,7 +5,7 @@ import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { ZodError, type ZodType } from 'zod';
 import type { Config } from './config';
-import type { Db } from './db/pool';
+import { onPoolError, type Db } from './db/pool';
 import { HttpError, unauthorized } from './lib/errors';
 import { AccessTokens } from './lib/jwt';
 import { createMailer, type Mailer } from './lib/mailer';
@@ -64,6 +64,7 @@ export async function buildApp(
     mailer: opts.mailer ?? createMailer(config.SMTP_URL, config.MAIL_FROM, app.log),
   };
   app.decorate('deps', deps);
+  onPoolError((err) => app.log.error({ err: err.message }, 'PostgreSQL: connessione inattiva persa'));
   app.decorateRequest('userId', '');
 
   await app.register(helmet, {

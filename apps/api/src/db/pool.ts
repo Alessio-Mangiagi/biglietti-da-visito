@@ -13,7 +13,7 @@ export function createPool(config: Pick<Config, 'DATABASE_URL' | 'DATABASE_SSL' 
       : config.DATABASE_SSL === 'require'
         ? { rejectUnauthorized: false }
         : { rejectUnauthorized: true, ca: config.databaseCa };
-  return new pg.Pool({
+  const pool = new pg.Pool({
     connectionString: config.DATABASE_URL,
     ssl,
     max: config.DATABASE_POOL_MAX,
@@ -21,6 +21,15 @@ export function createPool(config: Pick<Config, 'DATABASE_URL' | 'DATABASE_SSL' 
     connectionTimeoutMillis: 5_000,
     application_name: 'cardvault-api',
   });
+  // An idle client dropped by the server (DB restart, network blip) emits 'error' on the
+  // pool; unhandled, it would crash the process. The pool replaces the client on next use.
+  pool.on('error', (err) => onError(err));
+  return pool;
+}
+
+let onError: (err: Error) => void = (err) => console.error('PostgreSQL: connessione inattiva persa', err.message);
+export function onPoolError(fn: (err: Error) => void) {
+  onError = fn;
 }
 
 export async function withTransaction<T>(db: Db, fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
