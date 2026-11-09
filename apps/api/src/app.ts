@@ -63,7 +63,7 @@ export async function buildApp(
     config,
     db,
     tokens: new AccessTokens(config.JWT_SECRET, config.ACCESS_TOKEN_TTL),
-    mailer: opts.mailer ?? createMailer(config.SMTP_URL, config.MAIL_FROM, app.log),
+    mailer: opts.mailer ?? createMailer(config, app.log),
   };
   app.decorate('deps', deps);
   onPoolError((err) => app.log.error({ err: err.message }, 'PostgreSQL: connessione inattiva persa'));

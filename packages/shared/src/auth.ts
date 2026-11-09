@@ -89,6 +89,13 @@ export interface User {
   createdAt: string;
 }
 
+export const VerifyEmailSchema = z.object({ token: z.string().min(20).max(200) });
+
+/** Registration when e-mail confirmation is on: no session until the link is opened. */
+export interface RegisterPending {
+  status: 'verification_sent';
+}
+
 export interface AuthResponse {
   accessToken: string;
   expiresIn: number;

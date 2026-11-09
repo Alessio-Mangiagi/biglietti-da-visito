@@ -4,7 +4,9 @@ import {
   LoginSchema,
   RegisterSchema,
   ResetPasswordSchema,
+  VerifyEmailSchema,
   type AuthResponse,
+  type RegisterPending,
   type User,
 } from '@cardvault/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -21,6 +23,7 @@ const MAX_FAILED_LOGINS = 10;
 const MAX_FAILED_LOGINS_ACCOUNT = 100;
 const LOCK_MINUTES = 15;
 const RESET_TTL_MINUTES = 60;
+const VERIFY_TTL_HOURS = 48;
 /** Two tabs refreshing at once present the same token; tolerate that briefly. */
 const REUSE_GRACE_SECONDS = 30;
 /** forgot-password always takes at least this long (hides DB + SMTP time for real accounts). */
@@ -33,6 +36,7 @@ interface UserRow {
   password_hash: string;
   failed_logins: number;
   locked_until: Date | null;
+  email_verified_at: Date | null;
   created_at: Date;
 }
 
@@ -73,17 +77,96 @@ export async function authRoutes(app: FastifyInstance) {
     return { accessToken: await tokens.sign(user.id), expiresIn: tokens.ttl, user };
   }
 
+  const appUrl = config.APP_URL.replace(/\/$/, '');
+  /** Pads a response to a fixed minimum duration so timing does not reveal account existence. */
+  const atLeast = (started: number) => new Promise((r) => setTimeout(r, Math.max(0, FORGOT_MIN_MS - (Date.now() - started))));
+
+  async function sendVerification(user: Pick<UserRow, 'id' | 'email' | 'display_name'>) {
+    const raw = newToken();
+    await db.query('DELETE FROM email_verifications WHERE user_id = $1', [user.id]);
+    await db.query(
+      `INSERT INTO email_verifications (token_hash, user_id, expires_at) VALUES ($1, $2, now() + make_interval(hours => $3))`,
+      [sha256(raw), user.id, VERIFY_TTL_HOURS],
+    );
+    await mailer.send({
+      to: user.email,
+      subject: 'Conferma il tuo indirizzo email per CardVault',
+      text: `Ciao ${user.display_name},\n\nper attivare il tuo account CardVault apri questo link entro ${VERIFY_TTL_HOURS} ore:\n${appUrl}/conferma-email?token=${encodeURIComponent(raw)}\n\nSe non hai creato tu l'account, ignora questa email.\n\nCardVault`,
+    });
+  }
+
   app.post('/register', authLimit, async (req, reply) => {
+    const started = Date.now();
     const body = parse(RegisterSchema, req.body);
     const passwordHash = await hashPassword(body.password);
     const { rows } = await db.query<UserRow>(
-      `INSERT INTO users (email, password_hash, display_name, privacy_accepted_at)
-       VALUES ($1, $2, $3, now()) ON CONFLICT DO NOTHING RETURNING *`,
-      [body.email, passwordHash, body.displayName],
+      `INSERT INTO users (email, password_hash, display_name, privacy_accepted_at, email_verified_at)
+       VALUES ($1, $2, $3, now(), CASE WHEN $4 THEN NULL ELSE now() END) ON CONFLICT DO NOTHING RETURNING *`,
+      [body.email, passwordHash, body.displayName, config.emailVerification],
     );
-    if (!rows[0]) throw new HttpError(409, 'Esiste già un account con questa email', 'EMAIL_TAKEN');
-    reply.status(201);
-    return startSession(reply, req, toUser(rows[0]));
+
+    if (!config.emailVerification) {
+      // no mail configured (development): immediate session, as before
+      if (!rows[0]) throw new HttpError(409, 'Esiste già un account con questa email', 'EMAIL_TAKEN');
+      reply.status(201);
+      return startSession(reply, req, toUser(rows[0]));
+    }
+
+    // Same answer whether the address is new or taken: the owner of a taken address is
+    // told by e-mail instead, so the form cannot be used to discover who is registered.
+    try {
+      if (rows[0]) {
+        await sendVerification(rows[0]);
+      } else {
+        const existing = await db.query<UserRow>('SELECT * FROM users WHERE lower(email) = lower($1)', [body.email]);
+        const user = existing.rows[0];
+        if (user && !user.email_verified_at) await sendVerification(user);
+        else if (user) {
+          await mailer.send({
+            to: user.email,
+            subject: 'Tentativo di registrazione su CardVault',
+            text: `Ciao ${user.display_name},\n\nqualcuno (forse tu) ha provato a creare un account CardVault con questo indirizzo, che è già registrato.\n\nPer entrare: ${appUrl}/accedi\nSe hai dimenticato la password: ${appUrl}/password-dimenticata\n\nSe non sei stato tu, puoi ignorare questa email: il tuo account non è stato modificato.\n\nCardVault`,
+          });
+        }
+      }
+    } catch (err) {
+      req.log.error({ err }, 'invio email di registrazione fallito');
+    }
+    await atLeast(started);
+    reply.status(202);
+    return { status: 'verification_sent' } satisfies RegisterPending;
+  });
+
+  app.post('/verify-email', authLimit, async (req, reply) => {
+    const { token } = parse(VerifyEmailSchema, req.body);
+    const user = await withTransaction(db, async (tx) => {
+      const { rows } = await tx.query<{ user_id: string }>(
+        'DELETE FROM email_verifications WHERE token_hash = $1 AND expires_at > now() RETURNING user_id',
+        [sha256(token)],
+      );
+      const userId = rows[0]?.user_id;
+      if (!userId) return null;
+      await tx.query('DELETE FROM email_verifications WHERE user_id = $1', [userId]);
+      const u = await tx.query<UserRow>(
+        'UPDATE users SET email_verified_at = coalesce(email_verified_at, now()), updated_at = now() WHERE id = $1 RETURNING *',
+        [userId],
+      );
+      return u.rows[0] ?? null;
+    });
+    if (!user) throw new HttpError(400, 'Link scaduto o già usato. Accedi per riceverne uno nuovo.', 'VERIFY_INVALID');
+    return startSession(reply, req, toUser(user));
+  });
+
+  app.post('/resend-verification', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (req, reply) => {
+    const started = Date.now();
+    const { email } = parse(ForgotPasswordSchema, req.body);
+    if (config.emailVerification) {
+      const { rows } = await db.query<UserRow>('SELECT * FROM users WHERE lower(email) = lower($1)', [email]);
+      const user = rows[0];
+      if (user && !user.email_verified_at) await sendVerification(user).catch((err) => req.log.error({ err }, 'invio verifica fallito'));
+    }
+    await atLeast(started);
+    return reply.status(204).send();
   });
 
   app.post('/login', authLimit, async (req, reply) => {
@@ -130,6 +213,10 @@ export async function authRoutes(app: FastifyInstance) {
     }
     await db.query('UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = $1', [user.id]);
     await db.query('DELETE FROM rate_limits WHERE key = $1', [pairKey]);
+    // right password but address never confirmed (only reachable by its owner)
+    if (config.emailVerification && !user.email_verified_at) {
+      throw new HttpError(403, "Conferma il tuo indirizzo: apri il link che ti abbiamo inviato per email.", 'EMAIL_NOT_VERIFIED');
+    }
     return startSession(reply, req, toUser(user));
   });
 
@@ -249,7 +336,7 @@ export async function authRoutes(app: FastifyInstance) {
       );
       const userId = rows[0]?.user_id;
       if (!userId) return false;
-      await tx.query('UPDATE users SET password_hash = $2, failed_logins = 0, locked_until = NULL, tokens_valid_after = now(), updated_at = now() WHERE id = $1', [
+      await tx.query('UPDATE users SET password_hash = $2, failed_logins = 0, locked_until = NULL, tokens_valid_after = now(), email_verified_at = coalesce(email_verified_at, now()), updated_at = now() WHERE id = $1', [
         userId,
         passwordHash,
       ]);

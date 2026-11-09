@@ -63,6 +63,14 @@ export function PrivacyPage() {
           sovrascritte entro 30 giorni.
         </p>
 
+        <h2>Email di servizio</h2>
+        <p>
+          Le email di conferma dell'account e di reimpostazione della password sono inviate tramite AgentMail Inc.
+          (Stati Uniti), che riceve solo il tuo indirizzo email e il testo del messaggio. Il trasferimento avviene sulla
+          base delle clausole contrattuali standard della Commissione europea. Nessun dato dei biglietti viene inviato a
+          questo fornitore.
+        </p>
+
         <h2>Cookie e tracciamento</h2>
         <p>
           Usiamo un solo cookie tecnico, necessario per mantenerti connesso. Nessun cookie di profilazione, nessuno strumento

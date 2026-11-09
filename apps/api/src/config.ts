@@ -57,6 +57,13 @@ const EnvSchema = z.object({
   /** smtp(s)://user:pass@host:port — when missing, e-mails are written to the log. */
   SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().default('CardVault <no-reply@localhost>'),
+  /** AgentMail (Vercel Marketplace): set by the integration; takes precedence over SMTP. */
+  AGENTMAIL_API_KEY: z.string().optional(),
+  /** Optional: reuse an existing inbox instead of the app's own one. */
+  AGENTMAIL_INBOX_ID: z.string().optional(),
+  AGENTMAIL_USERNAME: z.string().default('cardvault-notifiche'),
+  /** auto: required as soon as the app can send e-mail (AgentMail or SMTP). */
+  EMAIL_VERIFICATION: z.enum(['auto', 'required', 'off']).default('auto'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -66,6 +73,8 @@ export interface Config extends Env {
   cookieSecure: boolean;
   databaseCa?: string;
   imageKey: Buffer;
+  /** New accounts must confirm their e-mail before the first login. */
+  emailVerification: boolean;
 }
 
 /**
@@ -110,5 +119,7 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
     cookieSecure: e.COOKIE_SECURE ?? e.NODE_ENV === 'production',
     databaseCa: e.DATABASE_CA_FILE ? readFileSync(e.DATABASE_CA_FILE, 'utf8') : undefined,
     imageKey: Buffer.from(e.IMAGE_ENCRYPTION_KEY, 'base64'),
+    emailVerification:
+      e.EMAIL_VERIFICATION === 'required' || (e.EMAIL_VERIFICATION === 'auto' && !!(e.AGENTMAIL_API_KEY || e.SMTP_URL)),
   };
 }

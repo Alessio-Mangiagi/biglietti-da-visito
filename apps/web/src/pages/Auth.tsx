@@ -1,9 +1,9 @@
-import { LoginSchema, PASSWORD_MIN, RegisterSchema, type AuthResponse } from '@cardvault/shared';
+import { LoginSchema, PASSWORD_MIN, RegisterSchema, type AuthResponse, type RegisterPending } from '@cardvault/shared';
 import { Eye, EyeSlash } from '@phosphor-icons/react';
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useToast } from '../components/Toasts';
-import { api, errorMessage, fieldErrors } from '../lib/api';
+import { api, ApiError, errorMessage, fieldErrors } from '../lib/api';
 import { useSession } from '../lib/session';
 
 function AuthLayout({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
@@ -105,6 +105,8 @@ export function LoginPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [unverified, setUnverified] = useState(false);
+  const [resent, setResent] = useState(false);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -112,14 +114,21 @@ export function LoginPage() {
     if (!parsed.success) return setErrors(zodErrors(parsed.error.issues));
     setErrors({});
     setError('');
+    setUnverified(false);
     setBusy(true);
     try {
       signIn(await api.post<AuthResponse>('/auth/login', parsed.data));
     } catch (err) {
+      setUnverified(err instanceof ApiError && err.code === 'EMAIL_NOT_VERIFIED');
       setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
+  }
+
+  async function resend() {
+    await api.post('/auth/resend-verification', { email }).catch(() => {});
+    setResent(true);
   }
 
   return (
@@ -134,8 +143,19 @@ export function LoginPage() {
     >
       <form className="stack" onSubmit={submit} noValidate>
         {error && (
-          <div className="alert alert-error" role="alert">
+          <div className={`alert ${unverified ? 'alert-warning' : 'alert-error'}`} role="alert">
             {error}
+            {unverified && (
+              <div style={{ marginTop: '0.5rem' }}>
+                {resent ? (
+                  <span className="small">Nuovo link inviato. Controlla anche la cartella spam.</span>
+                ) : (
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => void resend()}>
+                    Invia di nuovo il link
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
         <Field label="Email" type="email" value={email} onChange={setEmail} error={errors.email} autoComplete="username" />
@@ -158,6 +178,7 @@ export function RegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState(false);
   const set = (k: keyof typeof form) => (v: string | boolean) => setForm({ ...form, [k]: v });
 
   async function submit(e: FormEvent) {
@@ -168,13 +189,31 @@ export function RegisterPage() {
     setError('');
     setBusy(true);
     try {
-      signIn(await api.post<AuthResponse>('/auth/register', parsed.data));
+      const res = await api.post<AuthResponse | RegisterPending>('/auth/register', parsed.data);
+      if ('status' in res) setPending(true);
+      else signIn(res);
     } catch (err) {
       setErrors(fieldErrors(err));
       setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
+  }
+
+  if (pending) {
+    return (
+      <AuthLayout title="Controlla la tua email">
+        <div className="stack">
+          <p>
+            Abbiamo inviato un link a <strong>{form.email}</strong>. Aprilo per attivare l'account: vale 48 ore.
+          </p>
+          <p className="muted small">Non lo trovi? Guarda nella cartella spam, oppure prova ad accedere: potrai chiederne uno nuovo.</p>
+          <Link to="/accedi" className="btn btn-secondary btn-block">
+            Vai all'accesso
+          </Link>
+        </div>
+      </AuthLayout>
+    );
   }
 
   return (
@@ -316,6 +355,51 @@ export function ResetPasswordPage() {
             Salva password
           </button>
         </form>
+      )}
+    </AuthLayout>
+  );
+}
+
+/** Landing page of the confirmation e-mail: activates the account and signs in. */
+export function VerifyEmailPage() {
+  const [params] = useSearchParams();
+  const token = params.get('token') ?? '';
+  const { signIn } = useSession();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [error, setError] = useState('');
+  const started = useRef(false); // the link works once: never call twice (StrictMode)
+
+  useEffect(() => {
+    if (started.current || !token) return;
+    started.current = true;
+    api
+      .post<AuthResponse>('/auth/verify-email', { token })
+      .then((res) => {
+        signIn(res);
+        toast('Email confermata: benvenuto in CardVault');
+        navigate('/', { replace: true });
+      })
+      .catch((err) => setError(errorMessage(err)));
+  }, [token, signIn, navigate, toast]);
+
+  return (
+    <AuthLayout title="Conferma email">
+      {!token ? (
+        <div className="alert alert-error">Link non valido.</div>
+      ) : error ? (
+        <div className="stack">
+          <div className="alert alert-error" role="alert">
+            {error}
+          </div>
+          <Link to="/accedi" className="btn btn-secondary btn-block">
+            Vai all'accesso
+          </Link>
+        </div>
+      ) : (
+        <p className="muted" aria-busy="true">
+          Attivazione dell'account…
+        </p>
       )}
     </AuthLayout>
   );

@@ -3,7 +3,7 @@ import { Route, Routes } from 'react-router';
 import { AppShell } from './components/AppShell';
 import { ChunkBoundary } from './components/ChunkBoundary';
 import { GuestOnly, RequireAuth, Splash } from './components/Guards';
-import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from './pages/Auth';
+import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage, VerifyEmailPage } from './pages/Auth';
 import { NotFoundPage } from './pages/NotFound';
 import { WalletPage } from './pages/Wallet';
 
@@ -31,6 +31,7 @@ export function App() {
       <Route path="/registrati" element={guest(<RegisterPage />)} />
       <Route path="/password-dimenticata" element={guest(<ForgotPasswordPage />)} />
       <Route path="/reimposta-password" element={<ResetPasswordPage />} />
+      <Route path="/conferma-email" element={<VerifyEmailPage />} />
       <Route path="/privacy" element={page(<PrivacyPage />)} />
       <Route
         path="/scansiona"
