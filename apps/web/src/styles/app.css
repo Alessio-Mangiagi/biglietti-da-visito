@@ -594,7 +594,7 @@ button {
   align-items: center;
   height: var(--bottomnav-h);
   margin: 0 auto;
-  padding: 0 var(--safe-left) 0 var(--safe-right);
+  padding: 0 var(--safe-right) 0 var(--safe-left);
   max-width: 560px;
   list-style: none;
 }
@@ -611,12 +611,13 @@ button {
   color: var(--primary);
 }
 .bottomnav .scan-fab {
-  justify-self: center;
+  /* the <a> sits in a block <li>: auto margins centre it in its column */
   display: grid;
   place-items: center;
   width: 56px;
   height: 56px;
-  margin-top: -22px;
+  margin: -22px auto 0;
+  padding: 0;
   border-radius: 18px;
   background: var(--blue);
   color: #fff;

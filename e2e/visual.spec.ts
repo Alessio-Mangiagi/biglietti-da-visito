@@ -68,6 +68,18 @@ async function layoutIssues(page: Page): Promise<string[]> {
       if (w < 90) issues.push(`campo troppo stretto (${Math.round(w)}px) ${label(el)} [${el.getAttribute('aria-label') ?? ''}]`);
     }
 
+    // 2c. the scan button sits in the middle of the tab bar
+    const fab = document.querySelector('.bottomnav .scan-fab');
+    const bar = document.querySelector('.bottomnav ul');
+    if (fab && bar && visible(fab)) {
+      const fr = fab.getBoundingClientRect();
+      const br = bar.getBoundingClientRect();
+      const delta = (fr.left + fr.right) / 2 - (br.left + br.right) / 2;
+      if (Math.abs(delta) > 1) issues.push(`tasto Scansiona non centrato di ${delta.toFixed(1)}px`);
+      const icon = fab.querySelector('svg')?.getBoundingClientRect();
+      if (icon && Math.abs((icon.left + icon.right) / 2 - (fr.left + fr.right) / 2) > 1) issues.push('icona Scansiona non centrata nel tasto');
+    }
+
     // 3. horizontal overflow
     const vw = document.documentElement.clientWidth;
     const clipped = (el: Element) => {
