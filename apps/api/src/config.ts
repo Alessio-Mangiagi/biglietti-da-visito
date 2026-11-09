@@ -10,7 +10,24 @@ const EnvSchema = z.object({
   HOST: z.string().default('127.0.0.1'),
   PORT: z.coerce.number().int().default(3000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
-  TRUST_PROXY: bool.default(false),
+  /**
+   * Number of reverse proxies in front of the API ('true' = 1). Only that many hops of
+   * X-Forwarded-For are trusted: the client can prepend fake entries to the header, so
+   * trusting all of it would let anyone pick their IP and dodge rate limits.
+   */
+  TRUST_PROXY: z
+    .string()
+    .default('false')
+    .transform((v, ctx) => {
+      if (v === 'false' || v === '0') return 0;
+      if (v === 'true') return 1;
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 0 || n > 5) {
+        ctx.addIssue({ code: 'custom', message: 'TRUST_PROXY: true, false o numero di proxy (0-5)' });
+        return z.NEVER;
+      }
+      return n;
+    }),
 
   DATABASE_URL: z.string().url(),
   /** disable (dev only) | require (TLS, no CA check) | verify-full (TLS + CA + hostname). */
@@ -27,6 +44,8 @@ const EnvSchema = z.object({
     .string()
     .refine((v) => Buffer.from(v, 'base64').length === 32, 'IMAGE_ENCRYPTION_KEY deve essere 32 byte base64'),
   MAX_IMAGE_BYTES: z.coerce.number().int().default(2 * 1024 * 1024),
+  /** memory: one API process (VPS). postgres: counters shared by many instances (serverless). */
+  RATE_LIMIT_STORE: z.enum(['memory', 'postgres']).default('memory'),
 
   /** Public origin of the PWA, used for CORS and links in e-mails. */
   APP_URL: z.string().url(),
@@ -62,6 +81,7 @@ function withPlatformDefaults(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return {
     NODE_ENV: 'production',
     TRUST_PROXY: 'true',
+    RATE_LIMIT_STORE: 'postgres',
     ...env,
     DATABASE_URL: env.DATABASE_URL ?? env.POSTGRES_URL,
     APP_URL: env.APP_URL ?? (host ? `https://${host}` : undefined),

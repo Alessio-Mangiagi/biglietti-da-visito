@@ -20,6 +20,8 @@ const LOCK_MINUTES = 15;
 const RESET_TTL_MINUTES = 60;
 /** Two tabs refreshing at once present the same token; tolerate that briefly. */
 const REUSE_GRACE_SECONDS = 30;
+/** forgot-password always takes at least this long (hides DB + SMTP time for real accounts). */
+export const FORGOT_MIN_MS = Number(process.env.FORGOT_MIN_MS ?? 1500);
 
 interface UserRow {
   id: string;
@@ -169,7 +171,11 @@ export async function authRoutes(app: FastifyInstance) {
     if (!(await verifyPassword(rows[0].password_hash, body.currentPassword))) {
       throw new HttpError(403, 'La password attuale non è corretta', 'BAD_PASSWORD');
     }
-    await db.query('UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1', [req.userId, await hashPassword(body.newPassword)]);
+    // access tokens of every other device stop working now; this one is refreshed by the client
+    await db.query('UPDATE users SET password_hash = $2, tokens_valid_after = now(), updated_at = now() WHERE id = $1', [
+      req.userId,
+      await hashPassword(body.newPassword),
+    ]);
     const raw = req.cookies[REFRESH_COOKIE];
     await db.query(
       `UPDATE refresh_tokens SET revoked_at = now()
@@ -181,6 +187,7 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.post('/forgot-password', { config: { rateLimit: { max: 5, timeWindow: '15 minutes' } } }, async (req, reply) => {
+    const started = Date.now();
     const { email } = parse(ForgotPasswordSchema, req.body);
     const { rows } = await db.query<UserRow>('SELECT * FROM users WHERE lower(email) = lower($1)', [email]);
     const user = rows[0];
@@ -192,6 +199,7 @@ export async function authRoutes(app: FastifyInstance) {
         [sha256(raw), user.id, RESET_TTL_MINUTES],
       );
       const link = `${config.APP_URL.replace(/\/$/, '')}/reimposta-password?token=${encodeURIComponent(raw)}`;
+      // awaited: serverless platforms may freeze work left running after the response
       await mailer
         .send({
           to: user.email,
@@ -200,7 +208,8 @@ export async function authRoutes(app: FastifyInstance) {
         })
         .catch((err) => req.log.error({ err }, 'invio email reset fallito'));
     }
-    // same answer whether or not the account exists
+    // same answer, and the same minimum time, whether or not the account exists
+    await new Promise((r) => setTimeout(r, Math.max(0, FORGOT_MIN_MS - (Date.now() - started))));
     return reply.status(204).send();
   });
 
@@ -215,7 +224,7 @@ export async function authRoutes(app: FastifyInstance) {
       );
       const userId = rows[0]?.user_id;
       if (!userId) return false;
-      await tx.query('UPDATE users SET password_hash = $2, failed_logins = 0, locked_until = NULL, updated_at = now() WHERE id = $1', [
+      await tx.query('UPDATE users SET password_hash = $2, failed_logins = 0, locked_until = NULL, tokens_valid_after = now(), updated_at = now() WHERE id = $1', [
         userId,
         passwordHash,
       ]);

@@ -9,6 +9,7 @@ import { onPoolError, type Db } from './db/pool';
 import { HttpError, unauthorized } from './lib/errors';
 import { AccessTokens } from './lib/jwt';
 import { createMailer, type Mailer } from './lib/mailer';
+import { pgRateLimitStore } from './lib/rate-limit-store';
 import { accountRoutes } from './routes/account';
 import { authRoutes } from './routes/auth';
 import { contactRoutes } from './routes/contacts';
@@ -52,7 +53,8 @@ export async function buildApp(
             redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
             ...(config.NODE_ENV === 'development' ? { transport: { target: 'pino-pretty' } } : {}),
           },
-    trustProxy: config.TRUST_PROXY,
+    // believe only the X-Forwarded-For entries written by our own proxies (hop count)
+    trustProxy: config.TRUST_PROXY ? (_addr: string, hop: number) => hop < config.TRUST_PROXY : false,
     bodyLimit: 256 * 1024,
     routerOptions: { maxParamLength: 1000 }, // signed tokens travel in the path
   });
@@ -82,6 +84,7 @@ export async function buildApp(
   if (opts.rateLimit !== false) await app.register(rateLimit, {
     max: 300,
     timeWindow: '1 minute',
+    ...(config.RATE_LIMIT_STORE === 'postgres' ? { store: pgRateLimitStore(db), skipOnError: true } : {}),
     keyGenerator: (req) => req.ip,
     errorResponseBuilder: (_req, ctx) => ({
       statusCode: 429,
@@ -102,9 +105,25 @@ export async function buildApp(
   app.decorate('authenticate', async (req: FastifyRequest) => {
     const header = req.headers.authorization;
     const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
-    const userId = token ? await deps.tokens.verify(token) : null;
-    if (!userId) throw unauthorized('Sessione scaduta');
-    req.userId = userId;
+    const claims = token ? await deps.tokens.verify(token) : null;
+    if (!claims) throw unauthorized('Sessione scaduta');
+    // the account may have been deleted, or its password changed, after the token was issued
+    const { rows } = await db.query<{ valid_after: number | null }>(
+      `SELECT CASE WHEN tokens_valid_after = '-infinity' THEN NULL ELSE extract(epoch FROM tokens_valid_after) END AS valid_after
+       FROM users WHERE id = $1`,
+      [claims.userId],
+    );
+    const user = rows[0];
+    if (!user || (user.valid_after !== null && claims.iat < Math.floor(Number(user.valid_after)))) {
+      throw unauthorized('Sessione scaduta');
+    }
+    req.userId = claims.userId;
+  });
+
+  // personal data: never kept by browser or proxy caches unless a route says otherwise
+  app.addHook('onSend', async (_req, reply, payload) => {
+    if (!reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
+    return payload;
   });
 
   app.setErrorHandler((err, req, reply) => {

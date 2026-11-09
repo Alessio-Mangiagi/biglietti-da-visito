@@ -37,7 +37,17 @@ export const SOCIAL_LABELS: Record<SocialNetwork, string> = {
   other: 'Altro',
 };
 
-/** Absolute URL for links; keeps explicit schemes, adds https:// otherwise. */
+const SAFE_SCHEMES = /^(https?|mailto|tel):/i;
+
+/**
+ * Absolute URL for links built from untrusted text (OCR, imported vCards, QR codes).
+ * Only web, mail and phone schemes survive: "javascript:…", "data:…" and the like are
+ * neutralised by turning them into a harmless https URL.
+ */
 export function toHref(url: string): string {
-  return /^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `https://${url}`;
+  // eslint-disable-next-line no-control-regex -- stripping control characters is the point
+  const u = url.trim().replace(/[\u0000-\u001f\u007f\s]+/g, '');
+  if (SAFE_SCHEMES.test(u)) return u;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return `https://${encodeURIComponent(u)}`;
+  return `https://${u}`;
 }

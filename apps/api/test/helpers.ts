@@ -14,7 +14,7 @@ export interface TestCtx {
   close: () => Promise<void>;
 }
 
-export async function setupApp(opts: { rateLimit?: boolean } = {}): Promise<TestCtx> {
+export async function setupApp(opts: { rateLimit?: boolean; env?: Record<string, string> } = {}): Promise<TestCtx> {
   const config = loadConfig({
     NODE_ENV: 'test',
     DATABASE_URL: inject('databaseUrl'),
@@ -23,6 +23,7 @@ export async function setupApp(opts: { rateLimit?: boolean } = {}): Promise<Test
     IMAGE_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
     APP_URL: 'http://localhost:5173',
     LOG_LEVEL: 'silent',
+    ...opts.env,
   });
   const db = createPool(config);
   await migrate(db);

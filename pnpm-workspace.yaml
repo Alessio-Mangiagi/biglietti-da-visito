@@ -7,3 +7,7 @@ allowBuilds:
   '@embedded-postgres/linux-x64': true
   '@embedded-postgres/darwin-arm64': true
   tesseract.js: false
+# patched versions of build-time transitive deps (pnpm audit)
+overrides:
+  glob@>=9.0.0 <14.0.2: ^14.0.2
+  minimatch@>=7.0.0 <11.0.1: ^11.0.1

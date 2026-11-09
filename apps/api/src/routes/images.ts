@@ -36,7 +36,7 @@ export async function imageRoutes(app: FastifyInstance) {
     if (!img) throw notFound('Immagine');
     return reply
       .header('content-type', img.mime)
-      .header('cache-control', 'private, max-age=86400')
+      .header('cache-control', 'private, no-store') // the app keeps photos in memory; nothing left on disk after logout
       .header('x-content-type-options', 'nosniff')
       .send(img.data);
   });

@@ -1,6 +1,14 @@
 import { SignJWT, jwtVerify } from 'jose';
 
 const ISSUER = 'cardvault';
+/** Every token names what it is for: a capability link must never work as an API session. */
+const ACCESS_AUDIENCE = 'api';
+
+export interface AccessClaims {
+  userId: string;
+  /** issued-at, seconds */
+  iat: number;
+}
 
 export class AccessTokens {
   private key: Uint8Array;
@@ -16,16 +24,17 @@ export class AccessTokens {
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject(userId)
       .setIssuer(ISSUER)
+      .setAudience(ACCESS_AUDIENCE)
       .setIssuedAt()
       .setExpirationTime(`${this.ttlSeconds}s`)
       .sign(this.key);
   }
 
-  /** Returns the user id, or null for any invalid/expired token. */
-  async verify(token: string): Promise<string | null> {
+  /** Claims of a valid API access token, or null for anything else (expired, other audience…). */
+  async verify(token: string): Promise<AccessClaims | null> {
     try {
-      const { payload } = await jwtVerify(token, this.key, { issuer: ISSUER, algorithms: ['HS256'] });
-      return typeof payload.sub === 'string' ? payload.sub : null;
+      const { payload } = await jwtVerify(token, this.key, { issuer: ISSUER, audience: ACCESS_AUDIENCE, algorithms: ['HS256'] });
+      return typeof payload.sub === 'string' && typeof payload.iat === 'number' ? { userId: payload.sub, iat: payload.iat } : null;
     } catch {
       return null;
     }
@@ -33,6 +42,7 @@ export class AccessTokens {
 
   /** Short-lived capability URL token, e.g. to open a vCard by top-level navigation (iOS). */
   signScoped(userId: string, scope: string, resource: string, ttlSeconds: number): Promise<string> {
+    if (scope === ACCESS_AUDIENCE) throw new Error('scope riservato');
     return new SignJWT({ scope, res: resource })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject(userId)
