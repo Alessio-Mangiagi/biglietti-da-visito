@@ -61,3 +61,25 @@ describe('e-mail verification', () => {
     expect(ctx.mails.length).toBe(n + 1);
   });
 });
+
+describe('mail provider down', () => {
+  let down: TestCtx;
+  beforeAll(async () => {
+    down = await setupApp({ env: { EMAIL_VERIFICATION: 'required' } });
+    // every send fails, as with a provider rate limit
+    down.app.deps.mailer.send = async () => {
+      throw new Error('429 rate limit');
+    };
+  });
+  afterAll(() => down.close());
+
+  it('registration reports the outage the same way for new and taken addresses', async () => {
+    const email = `down${Date.now()}@test.it`;
+    const payload = { email, password: 'Mela-verde-2026', displayName: 'X', acceptPrivacy: true };
+    const first = await down.app.inject({ method: 'POST', url: '/api/auth/register', payload });
+    const again = await down.app.inject({ method: 'POST', url: '/api/auth/register', payload });
+    expect(first.statusCode).toBe(503);
+    expect(again.statusCode).toBe(503);
+    expect(again.json().message).toBe(first.json().message);
+  });
+});

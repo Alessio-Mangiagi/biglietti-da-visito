@@ -131,6 +131,10 @@ export async function authRoutes(app: FastifyInstance) {
       }
     } catch (err) {
       req.log.error({ err }, 'invio email di registrazione fallito');
+      // Say so instead of "check your inbox" for a mail that will never come. Both paths
+      // (new and taken address) send a mail, so this answer reveals nothing about accounts.
+      await atLeast(started);
+      throw new HttpError(503, 'Non riusciamo a inviare email in questo momento. Riprova tra qualche ora.', 'MAIL_UNAVAILABLE');
     }
     await atLeast(started);
     reply.status(202);
