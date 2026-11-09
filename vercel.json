@@ -1,6 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
+  "regions": [
+    "fra1"
+  ],
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm --filter @cardvault/api build && pnpm --filter @cardvault/web build",
   "outputDirectory": "apps/web/dist",

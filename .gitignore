@@ -10,3 +10,6 @@ coverage
 apps/web/public/ocr
 playwright-report
 test-results
+
+.vercel
+.env*
