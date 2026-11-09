@@ -52,8 +52,31 @@ test('the rotary card file turns by drag, keys and buttons and opens the front c
   await page.keyboard.press('Home');
   await expect(page.getByText('1 di 8')).toBeVisible();
 
-  // tapping the front card opens it
-  await page.keyboard.press('ArrowDown');
+  // swipe the front card sideways: it goes to the back, the next one comes forward
+  const fbox = (await front(/Giulia Bianchi.*Apri il contatto/).boundingBox())!;
+  const cy = fbox.y + fbox.height / 2;
+  await page.mouse.move(fbox.x + fbox.width / 2, cy);
+  await page.mouse.down();
+  await page.mouse.move(fbox.x + fbox.width / 2 - 70, cy + 4, { steps: 5 });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `test-results/rolodex/${info.project.name}-4-swipe.png` }).catch(() => {});
+  await page.mouse.move(fbox.x + fbox.width / 2 - 200, cy + 8, { steps: 5 });
+  await page.mouse.up();
+  await expect(front(/Marta Colombo.*Apri il contatto/)).toBeVisible();
+  await expect(page.getByText('1 di 8')).toBeVisible();
+  await drum.focus();
+  await page.keyboard.press('End');
+  await expect(front(/Giulia Bianchi.*Apri il contatto/)).toBeVisible(); // now the last card
+  // ← / → do the same from the keyboard
+  await page.keyboard.press('Home');
+  await page.keyboard.press('ArrowRight');
+  await expect(front(/Paolo De Santis.*Apri il contatto/)).toBeVisible();
+  await page.keyboard.press('Home');
+  await expect(front(/Paolo De Santis.*Apri il contatto/)).toBeVisible();
+
+  // order now: De Santis … Whitaker, Bianchi, Colombo — tapping the front card opens it
+  await page.keyboard.press('End');
+  await expect(page.getByText('8 di 8')).toBeVisible();
   await expect(front(/Marta Colombo.*Apri il contatto/)).toBeVisible();
   await page.waitForTimeout(500);
   await front(/Marta Colombo.*Apri il contatto/).click();
