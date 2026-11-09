@@ -15,7 +15,10 @@ import { HttpError, unauthorized } from '../lib/errors';
 import { burnPasswordCheck, hashPassword, verifyPassword } from '../lib/password';
 
 export const REFRESH_COOKIE = 'cv_refresh';
+/** Wrong passwords allowed from one IP for one account within LOCK_MINUTES. */
 const MAX_FAILED_LOGINS = 10;
+/** Across all IPs: only a distributed attack gets here. */
+const MAX_FAILED_LOGINS_ACCOUNT = 100;
 const LOCK_MINUTES = 15;
 const RESET_TTL_MINUTES = 60;
 /** Two tabs refreshing at once present the same token; tolerate that briefly. */
@@ -85,26 +88,48 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post('/login', authLimit, async (req, reply) => {
     const body = parse(LoginSchema, req.body);
+    const invalid = new HttpError(401, 'Email o password non corretti', 'BAD_CREDENTIALS');
+    const locked = new HttpError(429, 'Troppi tentativi falliti. Riprova tra qualche minuto.', 'LOCKED');
+    // Failures are counted per (account, IP): a stranger cannot lock the owner out by
+    // guessing from elsewhere. Unknown e-mails get the same treatment, so the lock
+    // message does not reveal which addresses are registered.
+    const pairKey = `login-fail|${body.email.toLowerCase()}|${req.ip}`;
+    const pair = await db.query<{ hits: number }>(
+      `SELECT hits FROM rate_limits WHERE key = $1 AND window_start > now() - make_interval(mins => $2)`,
+      [pairKey, LOCK_MINUTES],
+    );
+    if ((pair.rows[0]?.hits ?? 0) >= MAX_FAILED_LOGINS) throw locked;
+    const countFailure = () =>
+      db.query(
+        `INSERT INTO rate_limits AS r (key, window_start, hits) VALUES ($1, now(), 1)
+         ON CONFLICT (key) DO UPDATE SET
+           hits = CASE WHEN r.window_start <= now() - make_interval(mins => $2) THEN 1 ELSE r.hits + 1 END,
+           window_start = CASE WHEN r.window_start <= now() - make_interval(mins => $2) THEN now() ELSE r.window_start END`,
+        [pairKey, LOCK_MINUTES],
+      );
+
     const { rows } = await db.query<UserRow>('SELECT * FROM users WHERE lower(email) = lower($1)', [body.email]);
     const user = rows[0];
-    const invalid = new HttpError(401, 'Email o password non corretti', 'BAD_CREDENTIALS');
     if (!user) {
       await burnPasswordCheck(body.password);
+      await countFailure();
       throw invalid;
     }
-    if (user.locked_until && user.locked_until > new Date()) {
-      throw new HttpError(429, 'Troppi tentativi falliti. Riprova tra qualche minuto.', 'LOCKED');
-    }
+    // last line of defence against a distributed attack: lock the account itself
+    if (user.locked_until && user.locked_until > new Date()) throw locked;
     if (!(await verifyPassword(user.password_hash, body.password))) {
+      await countFailure();
       await db.query(
-        `UPDATE users SET failed_logins = failed_logins + 1,
-           locked_until = CASE WHEN failed_logins + 1 >= $2 THEN now() + make_interval(mins => $3) ELSE locked_until END
+        `UPDATE users SET
+           locked_until = CASE WHEN failed_logins + 1 >= $2 THEN now() + make_interval(mins => $3) ELSE locked_until END,
+           failed_logins = CASE WHEN failed_logins + 1 >= $2 THEN 0 ELSE failed_logins + 1 END
          WHERE id = $1`,
-        [user.id, MAX_FAILED_LOGINS, LOCK_MINUTES],
+        [user.id, MAX_FAILED_LOGINS_ACCOUNT, LOCK_MINUTES],
       );
       throw invalid;
     }
     await db.query('UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = $1', [user.id]);
+    await db.query('DELETE FROM rate_limits WHERE key = $1', [pairKey]);
     return startSession(reply, req, toUser(user));
   });
 
@@ -229,6 +254,11 @@ export async function authRoutes(app: FastifyInstance) {
         passwordHash,
       ]);
       await tx.query('UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL', [userId]);
+      // a proven owner is no longer locked out from any IP
+      await tx.query(
+        `DELETE FROM rate_limits WHERE starts_with(key, 'login-fail|' || (SELECT lower(email) FROM users WHERE id = $1) || '|')`,
+        [userId],
+      );
       return true;
     });
     if (!ok) throw new HttpError(400, 'Link scaduto o già usato. Richiedi un nuovo reset.', 'RESET_INVALID');

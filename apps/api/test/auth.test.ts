@@ -139,7 +139,8 @@ describe('auth', () => {
 
   it('locks the account after repeated failures', async () => {
     const u = await registerUser(ctx.app);
-    await ctx.db.query('UPDATE users SET failed_logins = 9 WHERE id = $1', [u.userId]);
+    // account-wide lock: 100 failures from anywhere
+    await ctx.db.query('UPDATE users SET failed_logins = 99 WHERE id = $1', [u.userId]);
     await ctx.app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: u.email, password: 'sbagliata' } });
     const res = await ctx.app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: u.email, password: 'password-sicura-123' } });
     expect(res.statusCode).toBe(429);

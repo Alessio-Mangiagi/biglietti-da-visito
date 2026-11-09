@@ -45,3 +45,35 @@ describe('security regressions', () => {
     expect(Date.now() - t0).toBeGreaterThanOrEqual(Number(process.env.FORGOT_MIN_MS ?? 1500) - 20);
   });
 });
+
+describe('login lockout', () => {
+  let px: TestCtx;
+  beforeAll(async () => {
+    px = await setupApp({ env: { TRUST_PROXY: '1' } });
+  });
+  afterAll(() => px.close());
+  const login = (email: string, password: string, ip: string) =>
+    px.app.inject({ method: 'POST', url: '/api/auth/login', payload: { email, password }, headers: { 'x-forwarded-for': ip } });
+
+  it('an attacker locks only their own IP, not the owner', async () => {
+    const u = await registerUser(px.app);
+    for (let i = 0; i < 10; i++) await login(u.email, 'sbagliata', '203.0.113.66');
+    expect((await login(u.email, 'password-sicura-123', '203.0.113.66')).statusCode).toBe(429);
+    expect((await login(u.email, 'password-sicura-123', '198.51.100.20')).statusCode).toBe(200);
+  });
+
+  it('unknown e-mails lock the same way (no account enumeration)', async () => {
+    const codes: number[] = [];
+    for (let i = 0; i < 11; i++) codes.push((await login('nessuno.qui@test.it', 'sbagliata', '203.0.113.67')).statusCode);
+    expect(codes.at(-1)).toBe(429);
+  });
+
+  it('a password reset lifts the per-IP lock', async () => {
+    const u = await registerUser(px.app);
+    for (let i = 0; i < 10; i++) await login(u.email, 'sbagliata', '203.0.113.68');
+    await px.app.inject({ method: 'POST', url: '/api/auth/forgot-password', payload: { email: u.email } });
+    const token = decodeURIComponent(/token=([^\s]+)/.exec(px.mails.at(-1)!.text)![1]!);
+    await px.app.inject({ method: 'POST', url: '/api/auth/reset-password', payload: { token, password: 'Nuova-Password-88' } });
+    expect((await login(u.email, 'Nuova-Password-88', '203.0.113.68')).statusCode).toBe(200);
+  });
+});
