@@ -2,4 +2,7 @@ packages:
   - apps/*
   - packages/*
 allowBuilds:
-  esbuild: set this to true or false
+  '@embedded-postgres/windows-x64': true
+  esbuild: true
+  '@embedded-postgres/linux-x64': true
+  '@embedded-postgres/darwin-arm64': true
