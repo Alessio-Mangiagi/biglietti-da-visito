@@ -1355,3 +1355,31 @@ dialog.modal[open] {
   font-size: 1.1rem;
   font-weight: 500;
 }
+
+/* sticky save bar above the bottom nav (mobile) or the viewport edge (desktop / scanner) */
+.form-actions {
+  position: sticky;
+  z-index: 5;
+  bottom: calc(var(--bottomnav-h) + var(--safe-bottom));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+.form-actions.no-nav {
+  bottom: 0;
+  padding-bottom: calc(var(--safe-bottom) + 0.75rem);
+}
+@media (min-width: 900px) {
+  .form-actions {
+    bottom: 0;
+  }
+}
+.topnav a.btn-primary,
+.topnav a.btn-primary[aria-current='page'] {
+  color: var(--on-primary);
+  background: var(--primary);
+}

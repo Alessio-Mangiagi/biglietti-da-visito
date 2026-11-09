@@ -90,6 +90,11 @@ describe('contacts', () => {
     expect((await search('q=Calcestruzi')).total).toBe(1);
   });
 
+  it('treats % and _ as literal characters', async () => {
+    expect((await search('q=%25')).total).toBe(0);
+    expect((await search('q=_')).total).toBe(0);
+  });
+
   it('requires every word of the query', async () => {
     expect((await search('q=marta catania')).total).toBe(1);
     expect((await search('q=marta licata')).total).toBe(0);

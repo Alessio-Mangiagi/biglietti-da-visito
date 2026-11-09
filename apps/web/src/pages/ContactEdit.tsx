@@ -99,7 +99,7 @@ export function ContactEditPage() {
       )}
       <ContactForm value={form} onChange={setForm} errors={errors} />
       {!isNew && existing.data && <PhotoManager contact={existing.data} />}
-      <div className="spread" style={{ position: 'sticky', bottom: 'calc(var(--bottomnav-h) + var(--safe-bottom))', padding: '0.75rem 0', background: 'var(--bg)' }}>
+      <div className="form-actions">
         <button type="button" className="btn btn-ghost" onClick={() => navigate(-1)}>
           Annulla
         </button>

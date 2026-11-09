@@ -189,19 +189,20 @@ export function buildSearch(userId: string, q: SearchQuery) {
   const where: string[] = ['c.user_id = $1', 'NOT c.is_self'];
   const rank: string[] = [];
 
-  // free text: every word must match somewhere (substring or fuzzy)
+  /** Substring or typo-tolerant match; % and _ typed by the user are literal, not wildcards. */
+  const match = (expr: string, value: string) => {
+    const raw = p(value);
+    const like = p(value.replace(/[\\%_]/g, (ch) => `\\${ch}`));
+    where.push(`(${expr} LIKE '%' || f_norm(${like}) || '%' OR word_similarity(f_norm(${raw}), ${expr}) >= ${FUZZY_THRESHOLD})`);
+    rank.push(`word_similarity(f_norm(${raw}), ${expr})`);
+  };
+
+  // free text: every word must match somewhere
   const terms = (q.q ?? '').split(/\s+/).filter(Boolean).slice(0, 8);
-  for (const t of terms) {
-    const ph = p(t);
-    where.push(`(c.search_text LIKE '%' || f_norm(${ph}) || '%' OR word_similarity(f_norm(${ph}), c.search_text) >= ${FUZZY_THRESHOLD})`);
-    rank.push(`word_similarity(f_norm(${ph}), c.search_text)`);
-  }
+  for (const t of terms) match('c.search_text', t);
 
   const fieldFilter = (expr: string, value: string | undefined) => {
-    if (!value) return;
-    const ph = p(value);
-    where.push(`(${expr} LIKE '%' || f_norm(${ph}) || '%' OR word_similarity(f_norm(${ph}), ${expr}) >= ${FUZZY_THRESHOLD})`);
-    rank.push(`word_similarity(f_norm(${ph}), ${expr})`);
+    if (value) match(expr, value);
   };
   fieldFilter(`f_norm(c.first_name || ' ' || c.last_name)`, q.name);
   fieldFilter('f_norm(c.company)', q.company);

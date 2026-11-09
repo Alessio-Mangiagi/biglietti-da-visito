@@ -20,6 +20,7 @@ export default defineConfig({
   projects: [
     { name: 'iphone-webkit', use: { ...devices['iPhone 14'] } },
     { name: 'android-chromium', use: { ...devices['Pixel 7'] } },
+    { name: 'desktop-chromium', use: { ...devices['Desktop Chrome'] }, testMatch: /screens\.spec/ },
   ],
   webServer: [
     {

@@ -324,7 +324,7 @@ export default function ScanPage() {
                 </pre>
               </details>
             )}
-            <div className="spread" style={{ position: 'sticky', bottom: 0, padding: '0.75rem 0 calc(var(--safe-bottom) + 0.75rem)', background: 'var(--bg)' }}>
+            <div className="form-actions no-nav">
               <button type="button" className="btn btn-ghost" onClick={exit}>
                 Annulla
               </button>
