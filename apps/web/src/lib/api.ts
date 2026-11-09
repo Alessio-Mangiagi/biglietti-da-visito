@@ -37,6 +37,8 @@ const BASE = '/api';
 class Api {
   private accessToken: string | null = null;
   private refreshing: Promise<AuthResponse | null> | null = null;
+  /** Bumped on every sign-in/out: a refresh that started earlier must not undo a newer session. */
+  private generation = 0;
   private listeners = new Set<SessionListener>();
 
   onSession(fn: SessionListener) {
@@ -49,6 +51,7 @@ class Api {
   }
 
   setSession(res: AuthResponse | null) {
+    this.generation++;
     this.accessToken = res?.accessToken ?? null;
     this.emit(res?.user ?? null);
   }
@@ -64,12 +67,14 @@ class Api {
   refresh(): Promise<AuthResponse | null> {
     if (this.refreshing) return this.refreshing;
     const run = async () => {
+      const startedAt = this.generation;
       const res = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'same-origin' }).catch(() => {
         throw new NetworkError();
       });
       if (!res.ok) {
         if (res.status === 401) {
-          this.setSession(null);
+          // e.g. the boot check failing while an e-mail link was signing the user in
+          if (this.generation === startedAt) this.setSession(null);
           return null;
         }
         throw await toError(res);

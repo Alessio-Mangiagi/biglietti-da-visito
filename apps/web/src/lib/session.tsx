@@ -40,7 +40,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         void requestPersistence();
         void flushOutbox();
       } else {
-        setStatus('anonymous');
+        // keep a session opened meanwhile (sign-in from a confirmation link)
+        setStatus((s) => (s === 'loading' ? 'anonymous' : s));
       }
     } catch (err) {
       const cached = await kvGet<User>(USER_KEY);
@@ -48,7 +49,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setUserState(cached);
         setStatus('offline');
       } else {
-        setStatus('anonymous');
+        setStatus((s) => (s === 'loading' ? 'anonymous' : s));
       }
     }
   }, []);
