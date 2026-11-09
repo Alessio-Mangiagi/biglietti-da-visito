@@ -13,7 +13,10 @@ su `/api` (stesso dominio: niente CORS, cookie validi su iPhone). Il database è
    - `JWT_SECRET` → `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`
    - `IMAGE_ENCRYPTION_KEY` → `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
      (conservala: senza non si decifrano le foto)
-   - facoltative: `SMTP_URL`, `MAIL_FROM` per le email di reset
+   - email: integrazione **AgentMail** del Marketplace (piano Free) collegata al progetto →
+     imposta `AGENTMAIL_API_KEY`; l'app crea da sola la casella `cardvault-notifiche@agentmail.to`.
+     In alternativa `SMTP_URL` + `MAIL_FROM`. Con la posta attiva la conferma email alla
+     registrazione si accende automaticamente (`EMAIL_VERIFICATION=auto`).
 4. **Redeploy**. Verifica: `https://<progetto>.vercel.app/api/health` → `{"ok":true}`.
    Se risponde 503 `NOT_CONFIGURED`, manca il database o una variabile (vedi i log della funzione).
 
