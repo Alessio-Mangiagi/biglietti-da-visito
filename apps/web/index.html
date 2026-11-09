@@ -15,13 +15,8 @@
     <meta name="apple-mobile-web-app-title" content="CardVault" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="format-detection" content="telephone=no" />
-    <script>
-      // apply the saved theme before first paint (no flash)
-      try {
-        var t = localStorage.getItem('cv-theme');
-        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-      } catch (e) {}
-    </script>
+    <!-- external (not inline) so the CSP needs no 'unsafe-inline' for scripts -->
+    <script src="/theme.js"></script>
   </head>
   <body>
     <div id="root"></div>

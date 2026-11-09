@@ -7,13 +7,32 @@ import { VitePWA } from 'vite-plugin-pwa';
 const https = process.env.HTTPS === '1';
 const apiTarget = process.env.API_URL ?? 'http://127.0.0.1:3000';
 
+/**
+ * Same policy as deploy/nginx: everything self-hosted. 'wasm-unsafe-eval' lets the
+ * Tesseract worker compile its WebAssembly; style attributes are used by React.
+ */
+export const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
+  "worker-src 'self' blob:",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' blob: data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "manifest-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join('; ');
+
 export default defineConfig({
   plugins: [
     react(),
     ...(https ? [basicSsl()] : []),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'theme.js'],
       manifest: {
         name: 'CardVault – Biglietti da visita',
         short_name: 'CardVault',
@@ -52,7 +71,12 @@ export default defineConfig({
     port: 5173,
     proxy: { '/api': { target: apiTarget, changeOrigin: false } },
   },
-  preview: { port: 4173, proxy: { '/api': { target: apiTarget } } },
-  build: { target: 'es2022', sourcemap: true },
+  preview: {
+    port: 4173,
+    proxy: { '/api': { target: apiTarget } },
+    headers: { 'Content-Security-Policy': CSP },
+  },
+  // no data: URIs (fonts would violate font-src 'self')
+  build: { target: 'es2022', sourcemap: true, assetsInlineLimit: 0 },
   worker: { format: 'es' },
 });

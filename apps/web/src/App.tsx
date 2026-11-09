@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router';
 import { AppShell } from './components/AppShell';
+import { ChunkBoundary } from './components/ChunkBoundary';
 import { GuestOnly, RequireAuth, Splash } from './components/Guards';
 import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from './pages/Auth';
 import { NotFoundPage } from './pages/NotFound';
@@ -15,7 +16,11 @@ const PrivacyPage = lazy(() => import('./pages/Privacy').then((m) => ({ default:
 const SearchPage = lazy(() => import('./pages/Search').then((m) => ({ default: m.SearchPage })));
 const SettingsPage = lazy(() => import('./pages/Settings').then((m) => ({ default: m.SettingsPage })));
 
-const page = (el: React.ReactNode) => <Suspense fallback={<div className="skeleton" style={{ height: 240 }} aria-busy="true" />}>{el}</Suspense>;
+const page = (el: React.ReactNode) => (
+  <ChunkBoundary>
+    <Suspense fallback={<div className="skeleton" style={{ height: 240 }} aria-busy="true" />}>{el}</Suspense>
+  </ChunkBoundary>
+);
 
 const guest = (el: React.ReactNode) => <GuestOnly>{el}</GuestOnly>;
 
@@ -31,9 +36,11 @@ export function App() {
         path="/scansiona"
         element={
           <RequireAuth>
-            <Suspense fallback={<Splash />}>
-              <ScanPage />
-            </Suspense>
+            <ChunkBoundary>
+              <Suspense fallback={<Splash />}>
+                <ScanPage />
+              </Suspense>
+            </ChunkBoundary>
           </RequireAuth>
         }
       />
