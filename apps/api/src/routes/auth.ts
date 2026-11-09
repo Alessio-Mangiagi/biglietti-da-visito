@@ -227,7 +227,10 @@ export async function authRoutes(app: FastifyInstance) {
       reply.clearCookie(REFRESH_COOKIE, cookieOpts);
       return unauthorized('Sessione scaduta, accedi di nuovo');
     };
-    if (!raw) throw fail();
+    // No cookie sent: answer 401 but do NOT expire the cookie. A cookie-less request (the
+    // start-up check) can finish after a sign-in that just set one; clearing here would
+    // delete the brand-new session in the browser.
+    if (!raw) throw unauthorized('Sessione scaduta, accedi di nuovo');
 
     const result = await withTransaction(db, async (tx) => {
       const { rows } = await tx.query<{

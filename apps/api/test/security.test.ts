@@ -77,3 +77,11 @@ describe('login lockout', () => {
     expect((await login(u.email, 'Nuova-Password-88', '203.0.113.68')).statusCode).toBe(200);
   });
 });
+
+describe('refresh without a cookie', () => {
+  it('does not expire the browser cookie (it may belong to a newer sign-in)', async () => {
+    const res = await ctx.app.inject({ method: 'POST', url: '/api/auth/refresh' });
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+});

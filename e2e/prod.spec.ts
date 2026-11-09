@@ -24,7 +24,8 @@ async function confirmationToken(request: APIRequestContext, inbox: string): Pro
 }
 
 test('production: sign up with e-mail confirmation, scan, save, search, delete account', async ({ page, request }, info) => {
-  const inbox = `cvprod-${info.project.name}-${Date.now()}`;
+  // short names: long Mailinator inboxes were not receiving
+  const inbox = `cv${info.project.name.slice(0, 3)}${Date.now().toString(36)}`;
   const email = `${inbox}@mailinator.com`;
   const csp: string[] = [];
   page.on('console', (m) => /Content.Security.Policy|Refused to/i.test(m.text()) && csp.push(m.text()));
@@ -53,6 +54,10 @@ test('production: sign up with e-mail confirmation, scan, save, search, delete a
   await page.getByRole('button', { name: 'Salva contatto' }).click();
   await expect(page.getByText('Contatto salvato')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Foto' })).toBeVisible(); // encrypted photo round-trip
+
+  // ---- full reload: the session must survive it (refresh cookie)
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Foto' })).toBeVisible();
 
   // ---- search (pg_trgm + unaccent on Neon)
   await page.goto('/cerca?q=colmbo');
