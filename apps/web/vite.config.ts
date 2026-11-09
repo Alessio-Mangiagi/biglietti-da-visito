@@ -69,7 +69,15 @@ export default defineConfig({
   server: {
     host: https ? '0.0.0.0' : 'localhost',
     port: 5173,
-    proxy: { '/api': { target: apiTarget, changeOrigin: false } },
+    proxy: {
+      '/api': {
+        target: apiTarget,
+        changeOrigin: false,
+        // dev only: from a phone on the LAN the Origin is https://<pc-ip>:5173, which the API's
+        // CSRF origin check would reject; the proxy is same-origin for the browser anyway
+        configure: (proxy) => proxy.on('proxyReq', (req) => req.removeHeader('origin')),
+      },
+    },
   },
   preview: {
     port: 4173,

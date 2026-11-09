@@ -39,7 +39,7 @@ export async function migrate(db: Db, log: (msg: string) => void = () => {}): Pr
         await client.query('COMMIT');
       } catch (err) {
         await client.query('ROLLBACK');
-        throw new Error(`Migrazione ${file} fallita: ${(err as Error).message}`);
+        throw new Error(`Migrazione ${file} fallita: ${(err as Error).message}`, { cause: err });
       }
       applied.push(file);
       log(`migrazione applicata: ${file}`);

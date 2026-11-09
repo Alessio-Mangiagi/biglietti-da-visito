@@ -84,7 +84,7 @@ const FISCAL_VALUE_RE = new RegExp(
   'gi',
 );
 
-const PHONE_CANDIDATE_RE = /(?:\+|00)?\(?\d[\d\s().\/-]{4,}\d/g;
+const PHONE_CANDIDATE_RE = /(?:\+|00)?\(?\d[\d\s()./-]{4,}\d/g;
 const LABELS: Array<[RegExp, PhoneType]> = [
   [/\b(fax|f)\.?\s*:?\s*$/i, 'fax'],
   [/\b(cell(?:ulare)?|cel|mob(?:ile)?|m|gsm|whatsapp|wa)\.?\s*:?\s*$/i, 'mobile'],

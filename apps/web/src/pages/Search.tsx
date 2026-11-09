@@ -35,7 +35,7 @@ function useDebounced<T>(value: T, ms = 250): T {
 /** Wraps accent-insensitive matches of the query words in <mark>. */
 function highlight(text: string, words: string[]): ReactNode {
   if (!text || !words.length) return text;
-  const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const fold = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const folded = fold(text);
   // NFD folding keeps 1:1 positions for Latin text without combining sequences
   if (folded.length !== text.length) return text;

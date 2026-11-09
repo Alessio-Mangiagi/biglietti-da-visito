@@ -1,7 +1,7 @@
 /** Text helpers shared by the extractors. */
 
 export function stripAccents(s: string): string {
-  return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 /** Lower-case, no accents, letters/digits only — for fuzzy comparisons. */
@@ -44,7 +44,7 @@ export function normalizeLine(raw: string): string {
     .replace(/[‘’´`]/g, "'")
     .replace(/[“”]/g, '"')
     .replace(/[–—−]/g, '-')
-    .replace(/[ \t]/g, ' ')
+    .replace(/[\u00a0\t]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   // e-mail '@' read as ©/®/(at)/[at]

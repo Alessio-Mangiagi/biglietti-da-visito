@@ -240,6 +240,12 @@ export function detectCard(g: Gray): Quad | null {
   const sumOf = (i: number) => (i % w) + ((i / w) | 0);
   const diffOf = (i: number) => (i % w) - ((i / w) | 0);
   let touchesBorder = 0;
+  const visit = (j: number) => {
+    if (!seen[j] && isCard(j)) {
+      seen[j] = 1;
+      stack.push(j);
+    }
+  };
   while (stack.length) {
     const i = stack.pop()!;
     area++;
@@ -250,10 +256,10 @@ export function detectCard(g: Gray): Quad | null {
     if (sumOf(i) > sumOf(br)) br = i;
     if (diffOf(i) > diffOf(tr)) tr = i;
     if (diffOf(i) < diffOf(bl)) bl = i;
-    if (x > 0 && !seen[i - 1] && isCard(i - 1)) (seen[i - 1] = 1), stack.push(i - 1);
-    if (x < w - 1 && !seen[i + 1] && isCard(i + 1)) (seen[i + 1] = 1), stack.push(i + 1);
-    if (y > 0 && !seen[i - w] && isCard(i - w)) (seen[i - w] = 1), stack.push(i - w);
-    if (y < h - 1 && !seen[i + w] && isCard(i + w)) (seen[i + w] = 1), stack.push(i + w);
+    if (x > 0) visit(i - 1);
+    if (x < w - 1) visit(i + 1);
+    if (y > 0) visit(i - w);
+    if (y < h - 1) visit(i + w);
   }
   const frac = area / (w * h);
   // the blob leaking along the frame means background and card were not separated

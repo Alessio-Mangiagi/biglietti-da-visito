@@ -1,0 +1,22 @@
+# /opt/cardvault/docker-compose.yml — API only; nginx runs on the host, PostgreSQL on the DB server.
+services:
+  api:
+    image: ${CARDVAULT_IMAGE:-cardvault-api:latest}
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      TRUST_PROXY: 'true'
+      DATABASE_CA_FILE: /run/secrets/db-ca.crt
+    volumes:
+      - ./secrets/db-ca.crt:/run/secrets/db-ca.crt:ro
+    ports:
+      - '127.0.0.1:3000:3000' # reachable only through nginx
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ['no-new-privileges:true']
+    cap_drop: [ALL]
+    logging:
+      driver: json-file
+      options: { max-size: '20m', max-file: '5' }

@@ -1,11 +1,12 @@
-!.env.example
+node_modules
+dist
+coverage
 *.log
+.pgdata
 .env
 .env.*
-.pgdata
+!.env.example
+!*.example
 apps/web/public/ocr
-coverage
-dist
-node_modules
 playwright-report
 test-results

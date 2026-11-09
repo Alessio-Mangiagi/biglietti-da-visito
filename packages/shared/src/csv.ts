@@ -77,5 +77,5 @@ export function toCsvRow(c: ContactInput): string[] {
 /** UTF-8 BOM + ";" separator: opens correctly in Excel with Italian locale. */
 export function toCsv(contacts: ContactInput[], sep = ';'): string {
   const rows = [CSV_HEADERS as readonly string[], ...contacts.map(toCsvRow)];
-  return '﻿' + rows.map((r) => r.map((v) => quote(v ?? '', sep)).join(sep)).join('\r\n') + '\r\n';
+  return '\uFEFF' + rows.map((r) => r.map((v) => quote(v ?? '', sep)).join(sep)).join('\r\n') + '\r\n';
 }
