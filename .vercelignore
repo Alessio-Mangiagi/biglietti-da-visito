@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+**/dist
+**/.pgdata
+apps/web/public/ocr
+playwright-report
+test-results
+.env
+.env.*
+**/.env
