@@ -1,4 +1,4 @@
-import { ContactInputSchema, ContactPatchSchema, SearchQuerySchema } from '@cardvault/shared';
+import { ContactInputSchema, ContactPatchSchema, FollowUpSchema, IsoDate, SearchQuerySchema } from '@cardvault/shared';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { parse } from '../app';
@@ -10,16 +10,21 @@ import {
   findDuplicates,
   getContact,
   insertContact,
+  letterIndex,
   listEvents,
+  listFollowUps,
   listTags,
   mergeContacts,
   searchContacts,
+  setFollowUp,
   updateContact,
+  walletStats,
 } from '../repo/contacts';
 
 export const IdParams = z.object({ id: z.uuid({ error: 'Contatto non trovato' }) });
 
 const CreateBody = ContactInputSchema.extend({ clientRef: z.uuid().optional() });
+const TodayQuery = z.object({ today: IsoDate.optional() });
 const MergeBody = z.object({ sourceId: z.uuid() });
 
 export async function contactRoutes(app: FastifyInstance) {
@@ -29,6 +34,24 @@ export async function contactRoutes(app: FastifyInstance) {
 
   app.get('/contacts/tags', async (req) => listTags(db, req.userId));
   app.get('/contacts/events', async (req) => listEvents(db, req.userId));
+
+  app.get('/contacts/stats', async (req) => {
+    const { today } = parse(TodayQuery, req.query);
+    return walletStats(db, req.userId, today ?? new Date().toISOString().slice(0, 10));
+  });
+
+  app.get('/contacts/letters', async (req) => letterIndex(db, req.userId, parse(SearchQuerySchema, req.query)));
+
+  app.get('/contacts/follow-ups', async (req) => listFollowUps(db, req.userId));
+
+  /** Sets (or clears, with on: null) the reminder to get back to this contact. */
+  app.put('/contacts/:id/follow-up', async (req) => {
+    const { id } = parse(IdParams, req.params);
+    const { on, note } = parse(FollowUpSchema, req.body);
+    const c = await setFollowUp(db, req.userId, id, on, note);
+    if (!c) throw notFound('Contatto');
+    return c;
+  });
 
   app.post('/contacts', async (req, reply) => {
     const { clientRef, ...input } = parse(CreateBody, req.body);

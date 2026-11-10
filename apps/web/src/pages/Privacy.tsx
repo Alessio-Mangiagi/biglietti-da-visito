@@ -51,6 +51,22 @@ export function PrivacyPage() {
           per ricontattare chi ti ha dato il biglietto.
         </p>
 
+        <h2>Condivisione con il team</h2>
+        <p>
+          Se entri in un team (ad esempio la rubrica condivisa Cosedil), i membri vedono il tuo nome e la tua email. Un
+          biglietto arriva ai colleghi solo quando scegli tu di condividerlo, e di quel biglietto vedono soltanto i dati
+          stampati e le foto: note, tag, evento e promemoria restano visibili solo a te. Puoi smettere di condividere o
+          uscire dal team in qualsiasi momento; le copie che un collega ha già salvato nel proprio wallet restano sue.
+        </p>
+
+        <h2>Promemoria e notifiche</h2>
+        <p>
+          Se attivi le notifiche, il browser crea un indirizzo di consegna presso il servizio di notifiche del produttore
+          (Apple, Google, Mozilla o Microsoft) e noi lo conserviamo per inviarti, al massimo una volta al giorno, quanti
+          contatti hai da ricontattare. Il messaggio viaggia cifrato e contiene solo il nome del primo contatto. Le
+          notifiche si disattivano dal browser o dalle impostazioni dell'app.
+        </p>
+
         <h2>Dove e come sono conservati</h2>
         <p>
           Server: {HOSTING}. Le connessioni sono cifrate (HTTPS/TLS), il database è su un server separato non raggiungibile da

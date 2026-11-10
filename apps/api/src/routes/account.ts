@@ -6,6 +6,8 @@ import { HttpError, notFound } from '../lib/errors';
 import { verifyPassword } from '../lib/password';
 import { getSelfCard, insertContact, searchContacts, updateContact } from '../repo/contacts';
 import { getImage } from '../repo/images';
+import { listTeams, removeMember } from '../repo/teams';
+import { withTransaction } from '../db/pool';
 import { REFRESH_COOKIE, toUser } from './auth';
 import { attachment } from './transfer';
 
@@ -64,6 +66,7 @@ export async function accountRoutes(app: FastifyInstance) {
       user,
       myCard: self ? await withImages(self) : null,
       contacts: await Promise.all(items.map(withImages)),
+      teams: await listTeams(db, req.userId),
     };
     return reply
       .header('content-type', 'application/json; charset=utf-8')
@@ -78,8 +81,12 @@ export async function accountRoutes(app: FastifyInstance) {
     if (!(await verifyPassword(rows[0].password_hash, password))) {
       throw new HttpError(403, 'Password non corretta', 'BAD_PASSWORD');
     }
-    // contacts, images, sessions and reset tokens go with ON DELETE CASCADE
-    await db.query('DELETE FROM users WHERE id = $1', [req.userId]);
+    await withTransaction(db, async (tx) => {
+      // leave every team first, so an admin is handed over and empty teams disappear
+      for (const t of await listTeams(tx, req.userId)) await removeMember(tx, t.id, req.userId);
+      // contacts, images, sessions and reset tokens go with ON DELETE CASCADE
+      await tx.query('DELETE FROM users WHERE id = $1', [req.userId]);
+    });
     reply.clearCookie(REFRESH_COOKIE, { path: '/api/auth', domain: config.COOKIE_DOMAIN });
     return reply.status(204).send();
   });

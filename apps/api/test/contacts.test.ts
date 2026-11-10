@@ -113,7 +113,8 @@ describe('contacts', () => {
 
   it('sorts and paginates', async () => {
     const byName = await search('sort=name&dir=asc');
-    expect(byName.items.map((c) => c.lastName)).toEqual(['Colombo', 'Nicolò', '']);
+    // surname, else first name, else company (Calcestruzzi Etnei has no person name)
+    expect(byName.items.map((c) => c.lastName || c.company)).toEqual(['Calcestruzzi Etnei SpA', 'Colombo', 'Nicolò']);
     const byCompany = await search('sort=company&dir=desc');
     expect(byCompany.items[0]?.company).toBe('Edil Restivo S.r.l.');
     const p2 = await search('pageSize=2&page=2&sort=name');

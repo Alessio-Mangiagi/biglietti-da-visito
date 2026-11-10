@@ -982,7 +982,8 @@ mark {
 }
 .detail-actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 0.5rem;
 }
 .detail-actions a,
@@ -1459,17 +1460,14 @@ dialog.modal[open] {
 }
 .rolodex {
   position: relative;
+  margin-top: 0.25rem;
   height: calc(var(--rcard-h) * 0.62 + var(--rcard-h) * var(--pivot) + 56px);
   perspective: 620px;
   perspective-origin: 50% -140%; /* seen from well above, as on a desk: the fan of cards behind shows */
-  touch-action: none; /* vertical drags turn the drum */
+  touch-action: pan-y; /* the page scrolls over it; sideways swipes are the card file's */
   user-select: none;
   -webkit-user-select: none;
-  cursor: grab;
   outline: none;
-}
-.rolodex:active {
-  cursor: grabbing;
 }
 .rolodex:focus-visible .rolo-card.is-front .bcard {
   outline: 3px solid var(--focus);

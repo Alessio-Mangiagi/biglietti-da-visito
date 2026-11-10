@@ -1,4 +1,4 @@
-import { displayName, formatPhone, SOCIAL_LABELS, toHref, toVCard, type Contact } from '@cardvault/shared';
+import { displayName, formatPhone, SHARED_FIELDS_NOTE, SOCIAL_LABELS, toE164, toHref, toVCard, type Contact } from '@cardvault/shared';
 import {
   AddressBook,
   ArrowLeft,
@@ -11,16 +11,19 @@ import {
   Trash,
   UsersThree,
   DownloadSimple,
+  WhatsappLogo,
 } from '@phosphor-icons/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { BusinessCard } from '../components/BusinessCard';
 import { DuplicateDialog } from '../components/DuplicateDialog';
+import { FollowUpPanel } from '../components/FollowUpPanel';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toasts';
 import { api, errorMessage, saveBlob } from '../lib/api';
 import { useContact, useContactImage } from '../lib/contacts';
+import { useContactTeams, useTeamActions, useTeams } from '../lib/teams';
 import type { Duplicate } from '../lib/save';
 
 const PHONE_LABEL = { mobile: 'Cellulare', work: 'Ufficio', home: 'Casa', fax: 'Fax', other: 'Telefono' } as const;
@@ -61,6 +64,9 @@ export function ContactDetailPage() {
   }
   const c = contact.data;
   const mainPhone = c.phones.find((p) => p.type === 'mobile') ?? c.phones.find((p) => p.type !== 'fax');
+  // WhatsApp only makes sense for a mobile number
+  const mobile = c.phones.find((p) => p.type === 'mobile');
+  const whatsapp = mobile ? toE164(mobile.value)?.replace('+', '') : undefined;
   const address = [c.address.street, [c.address.postalCode, c.address.city, c.address.province && `(${c.address.province})`].filter(Boolean).join(' '), c.address.country]
     .filter(Boolean)
     .join(', ');
@@ -133,6 +139,9 @@ export function ContactDetailPage() {
           <a href={mainPhone ? `tel:${mainPhone.value.replace(/[^\d+]/g, '')}` : undefined} aria-disabled={!mainPhone}>
             <Phone size={22} /> Chiama
           </a>
+          <a href={whatsapp ? `https://wa.me/${whatsapp}` : undefined} target="_blank" rel="noopener noreferrer" aria-disabled={!whatsapp}>
+            <WhatsappLogo size={22} /> WhatsApp
+          </a>
           <a href={c.emails[0] ? `mailto:${c.emails[0]}` : undefined} aria-disabled={!c.emails[0]}>
             <Envelope size={22} /> Email
           </a>
@@ -157,6 +166,7 @@ export function ContactDetailPage() {
       )}
 
       <div className="stack" style={{ maxWidth: 560, margin: '0 auto' }}>
+        <FollowUpPanel key={`${c.followUpOn}`} contact={c} />
         <section className="panel panel-flush" aria-label="Dettagli">
           <dl className="kv">
             {c.jobTitle && <Row k="Ruolo" v={c.jobTitle} />}
@@ -183,6 +193,8 @@ export function ContactDetailPage() {
         </section>
 
         {(c.hasFront || c.hasBack) && <Photos contact={c} />}
+
+        <TeamShare contactId={c.id} />
 
         <div className="inline">
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => void share()}>
@@ -236,6 +248,58 @@ export function ContactDetailPage() {
         />
       )}
     </>
+  );
+}
+
+/** Share this card with the teams I belong to (e.g. Cosedil). */
+function TeamShare({ contactId }: { contactId: string }) {
+  const teams = useTeams();
+  const shared = useContactTeams(contactId, !!teams.data?.length);
+  const actions = useTeamActions();
+  const toast = useToast();
+  const [busy, setBusy] = useState<string | null>(null);
+  if (!teams.data?.length) return null;
+  const on = new Set(shared.data ?? []);
+  async function toggle(teamId: string, name: string) {
+    setBusy(teamId);
+    try {
+      if (on.has(teamId)) {
+        await actions.unshare(teamId, contactId);
+        toast(`Non più condiviso con ${name}`);
+      } else {
+        await actions.share(teamId, contactId);
+        toast(`Condiviso con ${name}`);
+      }
+      await shared.refetch();
+    } catch (err) {
+      toast(errorMessage(err), 'error');
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <section className="panel stack-sm" aria-labelledby="share-title">
+      <h2 id="share-title" className="h3">
+        <UsersThree size={20} aria-hidden="true" /> Condividi con i colleghi
+      </h2>
+      <div className="inline">
+        {teams.data.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className="chip"
+            aria-pressed={on.has(t.id)}
+            disabled={busy === t.id || shared.isLoading}
+            onClick={() => void toggle(t.id, t.name)}
+          >
+            {t.name}
+          </button>
+        ))}
+      </div>
+      <p className="muted small" style={{ margin: 0 }}>
+        {SHARED_FIELDS_NOTE}
+      </p>
+    </section>
   );
 }
 

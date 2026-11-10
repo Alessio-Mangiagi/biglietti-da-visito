@@ -1,9 +1,10 @@
-import { LOW_CONFIDENCE, mergeParsed, parseCard, type ParsedField, type ParseResult } from '@cardvault/parser';
+import { LOW_CONFIDENCE, mergeParsed, type ParsedField, type ParseResult } from '@cardvault/parser';
 import type { ContactInput } from '@cardvault/shared';
 import { ArrowLeft, Camera as CameraIcon, CaretRight, QrCode } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { BatchReview, type Shot } from '../components/BatchReview';
 import { Camera, type Capture } from '../components/Camera';
 import { ContactForm } from '../components/ContactForm';
 import { CropEditor } from '../components/CropEditor';
@@ -11,15 +12,17 @@ import { DuplicateDialog } from '../components/DuplicateDialog';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toasts';
 import { errorMessage } from '../lib/api';
+import { applyEvent, useEventMode } from '../lib/event';
 import { createContact, today, type Duplicate } from '../lib/save';
 import { useSession } from '../lib/session';
 import type { Quad } from '../scan/geometry';
-import { findCard, imageDataOf, ocrCanvas, rotate, toJpeg, warp } from '../scan/image';
-import { recognize, warmUpOcr, type OcrProgress } from '../scan/ocr';
+import { findCard, imageDataOf, rotate, toJpeg, warp } from '../scan/image';
+import { warmUpOcr, type OcrProgress } from '../scan/ocr';
+import { readCard } from '../scan/read';
 import { findContactQr } from '../scan/qr';
 
 type Side = 'front' | 'back';
-type Step = 'camera' | 'crop' | 'back-prompt' | 'processing' | 'review';
+type Step = 'camera' | 'crop' | 'back-prompt' | 'processing' | 'review' | 'batch';
 
 interface Raw {
   canvas: HTMLCanvasElement;
@@ -28,15 +31,7 @@ interface Raw {
 }
 
 const STEP_LABELS = ['Scatto', 'Ritaglio', 'Lettura', 'Revisione'];
-const stepIndex = (s: Step) => ({ camera: 0, crop: 1, 'back-prompt': 1, processing: 2, review: 3 })[s];
-
-/** How many useful fields a parse found — used to pick the better orientation. */
-const score = (r: ParseResult) =>
-  (r.contact.firstName || r.contact.lastName ? 2 : 0) +
-  (r.contact.company ? 1 : 0) +
-  r.contact.emails.length * 2 +
-  r.contact.phones.length * 2 +
-  (r.contact.website ? 1 : 0);
+const stepIndex = (s: Step) => ({ camera: 0, crop: 1, 'back-prompt': 1, processing: 2, review: 3, batch: 3 })[s];
 
 export default function ScanPage() {
   const navigate = useNavigate();
@@ -57,12 +52,22 @@ export default function ScanPage() {
   const [dups, setDups] = useState<{ id: string; list: Duplicate[] } | null>(null);
   const [confirmExit, setConfirmExit] = useState(false);
   const previews = usePreviews(cropped);
+  const { event } = useEventMode();
+  // "Raffica": many cards in a row, cropped automatically, reviewed together at the end
+  const [batchOn, setBatchOn] = useState(false);
+  const [shots, setShots] = useState<Shot[]>([]);
 
   useEffect(() => warmUpOcr(), []);
 
   // --------------------------------------------------------------- capture
   function onCapture({ canvas, guide }: Capture) {
     setError('');
+    if (batchOn) {
+      const { quad } = findCard(canvas, guide);
+      setShots((list) => [...list, { id: crypto.randomUUID(), canvas: warp(canvas, quad) }]);
+      if (!reducedMotion()) navigator.vibrate?.(15);
+      return;
+    }
     // a vCard QR anywhere in the frame beats OCR
     const qr = findContactQr(imageDataOf(canvas));
     if (qr && side === 'front') setQrFound(qr);
@@ -93,16 +98,8 @@ export default function ScanPage() {
   async function readSide(canvas: HTMLCanvasElement, label: string): Promise<ParseResult> {
     const report = (p: OcrProgress) =>
       setProgress({ label: p.stage === 'load' ? 'Preparo il riconoscimento del testo…' : label, value: p.stage === 'load' ? p.progress * 0.2 : 0.2 + p.progress * 0.8 });
-    const qr = findContactQr(imageDataOf(canvas));
-    if (qr) return qr;
-    let best = parseCard(await recognize(ocrCanvas(canvas), report));
-    if (score(best) < 3) {
-      // maybe upside down
-      setProgress({ label: 'Provo a girare la foto…', value: 0.5 });
-      const flipped = parseCard(await recognize(ocrCanvas(rotate(canvas, 180)), report));
-      if (score(flipped) > score(best)) best = flipped;
-    }
-    return best;
+    // maybe upside down: readCard retries rotated
+    return readCard(canvas, report, () => setProgress({ label: 'Provo a girare la foto…', value: 0.5 }));
   }
 
   async function processAll(sides: Partial<Record<Side, HTMLCanvasElement>>) {
@@ -120,12 +117,12 @@ export default function ScanPage() {
         res = mergeParsed(res, back);
       }
       setResult(res);
-      setForm({ ...res.contact, metOn: res.contact.metOn ?? today() });
+      setForm(applyEvent({ ...res.contact, metOn: res.contact.metOn ?? today() }, event));
       setStep('review');
     } catch (err) {
       setError(`Lettura non riuscita: ${(err as Error).message}. Puoi compilare i campi a mano.`);
       setResult({ contact: {} as ContactInput, confidence: {}, leftovers: [], source: 'ocr' });
-      setForm(emptyForm());
+      setForm(applyEvent(emptyForm(), event));
       setStep('review');
     }
   }
@@ -165,7 +162,7 @@ export default function ScanPage() {
     }
   }
 
-  const dirty = step !== 'camera' || !!cropped.front;
+  const dirty = step !== 'camera' || !!cropped.front || shots.length > 0;
   const exit = () => (dirty ? setConfirmExit(true) : navigate(-1));
 
   // --------------------------------------------------------------- render
@@ -174,8 +171,13 @@ export default function ScanPage() {
       <Camera
         side={side}
         onCapture={onCapture}
-        onClose={() => (cropped.front ? setStep('back-prompt') : navigate(-1))}
+        onClose={() => (shots.length ? setStep('batch') : cropped.front ? setStep('back-prompt') : navigate(-1))}
         onError={(m) => setError(m)}
+        batch={
+          side === 'front' && !cropped.front
+            ? { on: batchOn, count: shots.length, onToggle: () => setBatchOn((b) => !b), onDone: () => setStep('batch') }
+            : undefined
+        }
       />
     );
   }
@@ -187,7 +189,7 @@ export default function ScanPage() {
           <button type="button" className="icon-btn" aria-label="Esci dalla scansione" onClick={exit}>
             <ArrowLeft size={22} />
           </button>
-          <h1 style={{ fontSize: '1.15rem' }}>Nuovo biglietto</h1>
+          <h1 style={{ fontSize: '1.15rem' }}>{step === 'batch' ? 'Scansione a raffica' : 'Nuovo biglietto'}</h1>
         </div>
       </header>
       <main className="main main-narrow" style={{ paddingBottom: 'calc(var(--safe-bottom) + 2rem)' }}>
@@ -203,6 +205,10 @@ export default function ScanPage() {
           <div className="alert alert-error" role="alert" style={{ marginBottom: '1rem' }}>
             {error}
           </div>
+        )}
+
+        {step === 'batch' && (
+          <BatchReview shots={shots} event={event} onRemove={(id) => setShots((l) => l.filter((x) => x.id !== id))} onMore={() => setStep('camera')} />
         )}
 
         {step === 'crop' && raw && (
@@ -368,6 +374,8 @@ export default function ScanPage() {
     </div>
   );
 }
+
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 function emptyForm(): ContactInput {
   return {

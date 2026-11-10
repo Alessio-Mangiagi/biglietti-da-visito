@@ -12,8 +12,8 @@ export function toneFor(key: string): Tone {
 }
 
 interface Props {
-  contact: Pick<ContactInput, 'firstName' | 'lastName' | 'company' | 'jobTitle' | 'favorite' | 'prefix'> &
-    Partial<Pick<ContactInput, 'phones' | 'emails' | 'address'>>;
+  contact: Pick<ContactInput, 'firstName' | 'lastName' | 'company' | 'jobTitle' | 'prefix'> &
+    Partial<Pick<ContactInput, 'favorite' | 'phones' | 'emails' | 'address'>>;
   pending?: boolean;
   tone?: Tone;
   compact?: boolean;

@@ -32,7 +32,7 @@ export default defineConfig({
     ...(https ? [basicSsl()] : []),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'theme.js'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'theme.js', 'push-sw.js', 'paper-grain.svg'],
       manifest: {
         name: 'CardVault – Biglietti da visita',
         short_name: 'CardVault',
@@ -49,10 +49,18 @@ export default defineConfig({
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
           { src: 'pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        // long-press on the app icon (Android; iOS ignores them)
+        shortcuts: [
+          { name: 'Scansiona biglietto', short_name: 'Scansiona', url: '/scansiona', icons: [{ src: 'shortcut-scan.png', sizes: '96x96', type: 'image/png' }] },
+          { name: 'Il mio biglietto', short_name: 'Il mio', url: '/il-mio-biglietto', icons: [{ src: 'shortcut-card.png', sizes: '96x96', type: 'image/png' }] },
+          { name: 'Da ricontattare', short_name: 'Promemoria', url: '/promemoria', icons: [{ src: 'shortcut-bell.png', sizes: '96x96', type: 'image/png' }] },
+        ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        globIgnores: ['ocr/**'],
+        globIgnores: ['ocr/**', 'splash/**'],
+        // push notifications (follow-up reminders)
+        importScripts: ['push-sw.js'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [

@@ -6,6 +6,7 @@ import { loadConfig } from '../src/config';
 import { migrate } from '../src/db/migrate';
 import { createPool, type Db } from '../src/db/pool';
 import type { Mail } from '../src/lib/mailer';
+import type { PushSender } from '../src/lib/push';
 
 export interface TestCtx {
   app: FastifyInstance;
@@ -14,7 +15,7 @@ export interface TestCtx {
   close: () => Promise<void>;
 }
 
-export async function setupApp(opts: { rateLimit?: boolean; env?: Record<string, string> } = {}): Promise<TestCtx> {
+export async function setupApp(opts: { rateLimit?: boolean; env?: Record<string, string>; push?: PushSender } = {}): Promise<TestCtx> {
   const config = loadConfig({
     NODE_ENV: 'test',
     DATABASE_URL: inject('databaseUrl'),
@@ -28,7 +29,7 @@ export async function setupApp(opts: { rateLimit?: boolean; env?: Record<string,
   const db = createPool(config);
   await migrate(db);
   const mails: Mail[] = [];
-  const app = await buildApp(config, db, { logger: false, rateLimit: opts.rateLimit ?? false, mailer: { send: async (m) => void mails.push(m) } });
+  const app = await buildApp(config, db, { logger: false, rateLimit: opts.rateLimit ?? false, mailer: { send: async (m) => void mails.push(m) }, push: opts.push });
   await app.ready();
   return {
     app,

@@ -22,7 +22,7 @@ test('register, scan a card with on-device OCR, save it and find it', async ({ p
 
   // ---- empty wallet
   await expect(page.getByRole('heading', { name: 'Il tuo wallet' })).toBeVisible();
-  await expect(page.getByText('Nessun biglietto, per ora')).toBeVisible();
+  await expect(page.getByText('Il tuo primo biglietto in tre passi')).toBeVisible();
 
   // ---- scan from gallery (headless browsers have no camera)
   await page.getByRole('link', { name: 'Scansiona biglietto' }).first().click();

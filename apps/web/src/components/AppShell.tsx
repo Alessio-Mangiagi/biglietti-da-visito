@@ -1,8 +1,9 @@
-import { Cards, Gear, IdentificationCard, MagnifyingGlass, Scan, WifiSlash } from '@phosphor-icons/react';
+import { Cards, Gear, IdentificationCard, MagnifyingGlass, Scan, UsersThree, WifiSlash } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { useSession } from '../lib/session';
+import { usePendingInvite } from '../pages/Team';
 
 export function useOnline() {
   const [online, setOnline] = useState(navigator.onLine);
@@ -22,11 +23,14 @@ export function useOnline() {
 const NAV = [
   { to: '/', label: 'Wallet', short: 'Wallet', icon: Cards, end: true },
   { to: '/cerca', label: 'Cerca', short: 'Cerca', icon: MagnifyingGlass, end: false },
-  { to: '/il-mio-biglietto', label: 'Il mio biglietto', short: 'Il mio', icon: IdentificationCard, end: false },
+  { to: '/team', label: 'Team', short: 'Team', icon: UsersThree, end: false },
   { to: '/impostazioni', label: 'Impostazioni', short: 'Altro', icon: Gear, end: false },
 ];
+/** Desktop only: on phones "Il mio biglietto" sits in the wallet header (QR button). */
+const TOP_ONLY = [{ to: '/il-mio-biglietto', label: 'Il mio biglietto', short: 'Il mio', icon: IdentificationCard, end: false }];
 
 export function AppShell() {
+  usePendingInvite();
   const online = useOnline();
   const { status } = useSession();
   const {
@@ -64,7 +68,7 @@ export function AppShell() {
             CardVault
           </NavLink>
           <nav className="topnav" aria-label="Principale">
-            {NAV.map((n) => (
+            {[...NAV.slice(0, 3), ...TOP_ONLY, NAV[3]!].map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end}>
                 {n.label}
               </NavLink>

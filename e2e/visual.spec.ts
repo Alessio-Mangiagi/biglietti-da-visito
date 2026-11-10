@@ -142,14 +142,8 @@ for (const [phone, device] of Object.entries(PHONES)) {
       await page.goto('/');
       await expect(page.getByRole('heading', { name: 'Il tuo wallet' })).toBeVisible();
       await check('04-wallet-schedario');
-      // turn the drum one card (Bianchi → Colombo) with a vertical drag, as on a phone
-      const drum = page.getByRole('group', { name: /Biglietti: trascina/ });
-      await drum.scrollIntoViewIfNeeded();
-      const box = (await drum.boundingBox())!;
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4);
-      await page.mouse.down();
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4 - 70, { steps: 8 });
-      await page.mouse.up();
+      // turn the drum to C (Bianchi → Colombo) with the A–Z tabs
+      await page.getByRole('button', { name: /^Lettera C,/ }).click();
       await expect(page.getByRole('button', { name: /Marta Colombo.*Apri il contatto/ })).toBeVisible();
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${shots}/04b-schedario-ruotato.png` });
@@ -177,6 +171,12 @@ for (const [phone, device] of Object.entries(PHONES)) {
       await check('10-mio-biglietto-qr');
       await page.goto('/impostazioni');
       await check('11-impostazioni');
+      await page.goto('/promemoria');
+      await expect(page.getByRole('heading', { name: 'Da ricontattare' })).toBeVisible();
+      await check('11b-promemoria');
+      await page.goto('/team');
+      await expect(page.getByRole('heading', { name: /Crea la rubrica/ })).toBeVisible();
+      await check('11c-team');
 
       // scanner: camera screen (headless has no camera → fallback), crop, review
       await page.goto('/scansiona');

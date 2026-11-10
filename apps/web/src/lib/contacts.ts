@@ -1,20 +1,23 @@
-import type { Contact, Page, SearchQuery } from '@cardvault/shared';
-import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Contact, Page, SearchQuery, WalletStats } from '@cardvault/shared';
+import { keepPreviousData, useInfiniteQuery, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { api, NetworkError } from './api';
 import { kvGet, kvSet } from './idb';
+import { today } from './save';
 
 export type SearchParams = Partial<SearchQuery>;
 const WALLET_CACHE = 'wallet-cache';
 const PAGE_SIZE = 30;
+/** The card file loads bigger pages: jumping to a letter may need everything before it. */
+export const ROLODEX_PAGE_SIZE = 100;
 
 /** Wallet: newest first, infinite. Page 1 is mirrored in IndexedDB for offline use. */
-export function useWallet(params: SearchParams = {}) {
+export function useWallet(params: SearchParams = {}, pageSize = PAGE_SIZE) {
   // no filters (sorting alone still counts as the plain wallet): mirrored offline, per order
   const isDefault = !Object.entries(params).some(([k, v]) => k !== 'sort' && k !== 'dir' && v !== undefined && v !== '');
   const cacheKey = `${WALLET_CACHE}:${params.sort ?? 'createdAt'}`;
   return useInfiniteQuery({
-    queryKey: ['contacts', 'wallet', params],
+    queryKey: ['contacts', 'wallet', params, pageSize],
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
       try {
@@ -23,7 +26,7 @@ export function useWallet(params: SearchParams = {}) {
           dir: 'desc',
           ...params,
           page: pageParam,
-          pageSize: PAGE_SIZE,
+          pageSize,
         });
         if (isDefault && pageParam === 1) void kvSet(cacheKey, page);
         return { ...page, offline: false };
@@ -88,14 +91,15 @@ export function useEvents() {
 }
 
 /** Authenticated photo → object URL (an <img src> cannot carry the bearer token). */
-export function useContactImage(id: string | undefined, side: 'front' | 'back', enabled: boolean, version?: string) {
+export function useContactImage(id: string | undefined, side: 'front' | 'back', enabled: boolean, version?: string, teamId?: string) {
+  const path = teamId ? `/teams/${teamId}/contacts/${id}/images/${side}` : `/contacts/${id}/images/${side}`;
   const q = useQuery({
-    queryKey: ['contacts', 'image', id, side, version],
+    queryKey: ['contacts', 'image', id, side, version, teamId],
     enabled: !!id && enabled,
     staleTime: Infinity,
     gcTime: 5 * 60_000,
     queryFn: async () => {
-      const res = await api.request<Response>(`/contacts/${id}/images/${side}`, { response: true });
+      const res = await api.request<Response>(path, { response: true });
       return res.blob();
     },
   });
@@ -107,4 +111,45 @@ export function useContactImage(id: string | undefined, side: 'front' | 'back', 
     return () => URL.revokeObjectURL(u);
   }, [q.data]);
   return { url, isLoading: q.isLoading, error: q.error };
+}
+
+/** Header numbers; `today` is the device's own date so "due" matches the user's calendar. */
+export function useStats() {
+  return useQuery({
+    queryKey: ['contacts', 'stats'],
+    queryFn: () => api.get<WalletStats>('/contacts/stats', { today: today() }),
+    staleTime: 60_000,
+  });
+}
+
+export function useFollowUps() {
+  return useQuery({
+    queryKey: ['contacts', 'follow-ups'],
+    queryFn: () => api.get<Contact[]>('/contacts/follow-ups'),
+  });
+}
+
+export async function setFollowUp(qc: QueryClient, id: string, on: string | null, note = ''): Promise<Contact> {
+  const updated = await api.put<Contact>(`/contacts/${id}/follow-up`, { on, note });
+  qc.setQueryData(['contacts', 'one', id], updated);
+  void qc.invalidateQueries({ queryKey: ['contacts', 'follow-ups'] });
+  void qc.invalidateQueries({ queryKey: ['contacts', 'stats'] });
+  return updated;
+}
+
+export interface LetterIndex {
+  letter: string;
+  /** Position of the first card with this letter, in name order. */
+  offset: number;
+  count: number;
+}
+
+/** A–Z tabs of the card file: where each letter starts, for the current filter. */
+export function useLetters(params: SearchParams, enabled: boolean) {
+  return useQuery({
+    queryKey: ['contacts', 'letters', params],
+    enabled,
+    queryFn: () => api.get<LetterIndex[]>('/contacts/letters', params as Record<string, string>),
+    staleTime: 30_000,
+  });
 }

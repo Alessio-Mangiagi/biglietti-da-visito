@@ -17,6 +17,11 @@ su `/api` (stesso dominio: niente CORS, cookie validi su iPhone). Il database è
      imposta `AGENTMAIL_API_KEY`; l'app crea da sola la casella `cardvault-notifiche@agentmail.to`.
      In alternativa `SMTP_URL` + `MAIL_FROM`. Con la posta attiva la conferma email alla
      registrazione si accende automaticamente (`EMAIL_VERIFICATION=auto`).
+   - notifiche dei promemoria (facoltative): `npx web-push generate-vapid-keys` →
+     `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`; `CRON_SECRET` → una stringa casuale di almeno 16
+     caratteri. Vercel Cron chiama `/api/cron/reminders` ogni mattina alle 07:00 UTC (`vercel.json`)
+     con `Authorization: Bearer $CRON_SECRET`. Senza chiavi le notifiche restano spente e i
+     promemoria funzionano comunque (lista in app + «Aggiungi al calendario»).
 4. **Redeploy**. Verifica: `https://<progetto>.vercel.app/api/health` → `{"ok":true}`.
    Se risponde 503 `NOT_CONFIGURED`, manca il database o una variabile (vedi i log della funzione).
 

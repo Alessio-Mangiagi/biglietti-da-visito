@@ -9,11 +9,14 @@ import { onPoolError, type Db } from './db/pool';
 import { HttpError, unauthorized } from './lib/errors';
 import { AccessTokens } from './lib/jwt';
 import { createMailer, type Mailer } from './lib/mailer';
+import { createPushSender, type PushSender } from './lib/push';
 import { pgRateLimitStore } from './lib/rate-limit-store';
 import { accountRoutes } from './routes/account';
 import { authRoutes } from './routes/auth';
 import { contactRoutes } from './routes/contacts';
 import { imageRoutes } from './routes/images';
+import { cronRoutes, pushRoutes } from './routes/push';
+import { teamRoutes } from './routes/teams';
 import { publicVCardRoutes, transferRoutes } from './routes/transfer';
 
 declare module 'fastify' {
@@ -31,6 +34,7 @@ export interface Deps {
   db: Db;
   tokens: AccessTokens;
   mailer: Mailer;
+  push: PushSender;
 }
 
 export function parse<T>(schema: ZodType<T>, data: unknown): T {
@@ -42,7 +46,7 @@ export const IMAGE_TYPES = ['image/jpeg', 'image/webp', 'image/png'] as const;
 export async function buildApp(
   config: Config,
   db: Db,
-  opts: { mailer?: Mailer; logger?: boolean; rateLimit?: boolean } = {},
+  opts: { mailer?: Mailer; push?: PushSender; logger?: boolean; rateLimit?: boolean } = {},
 ): Promise<FastifyInstance> {
   const app = Fastify({
     logger:
@@ -64,6 +68,7 @@ export async function buildApp(
     db,
     tokens: new AccessTokens(config.JWT_SECRET, config.ACCESS_TOKEN_TTL),
     mailer: opts.mailer ?? createMailer(config, app.log),
+    push: opts.push ?? createPushSender(config),
   };
   app.decorate('deps', deps);
   onPoolError((err) => app.log.error({ err: err.message }, 'PostgreSQL: connessione inattiva persa'));
@@ -152,12 +157,15 @@ export async function buildApp(
 
   await app.register(authRoutes, { prefix: '/api/auth' });
   await app.register(publicVCardRoutes, { prefix: '/api' });
+  await app.register(cronRoutes, { prefix: '/api' });
   await app.register(async (scoped) => {
     scoped.addHook('onRequest', scoped.authenticate);
     await scoped.register(contactRoutes);
     await scoped.register(imageRoutes);
     await scoped.register(transferRoutes);
     await scoped.register(accountRoutes);
+    await scoped.register(teamRoutes);
+    await scoped.register(pushRoutes);
   }, { prefix: '/api' });
 
   return app;

@@ -1,15 +1,16 @@
 import { displayName, type Contact } from '@cardvault/shared';
 import { CaretDown, CaretUp } from '@phosphor-icons/react';
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { BusinessCard } from './BusinessCard';
+import { useContactImage, type LetterIndex } from '../lib/contacts';
+import { BusinessCard, toneFor } from './BusinessCard';
 
 /** Degrees between two consecutive cards on the drum. */
 const STEP_DEG = 15;
-/** Finger travel that turns the drum by one card. */
-const STEP_PX = 56;
 /** Cards rendered on each side of the front one. */
 const WINDOW = 7;
+/** Cards around the front one that show their real photo (the rest stay drawn). */
+const PHOTO_WINDOW = 2;
 /** Sideways swipe past this share of the card width sends the card to the back. */
 const SEND_BACK_RATIO = 0.28;
 const FLY_MS = 230;
@@ -17,10 +18,10 @@ const FLY_MS = 230;
 const reducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-/** Index letter shown on the card tab, like the A–Z dividers of a desk card file. */
+/** Index letter shown on the card tab: surname, else first name, else company (as the API sorts). */
 export function indexLetter(c: Pick<Contact, 'lastName' | 'firstName' | 'company'>): string {
   const src = c.lastName || c.firstName || c.company || '#';
-  const ch = src.normalize('NFD').replace(/[\u0300-\u036f]/g, '').charAt(0).toUpperCase();
+  const ch = src.normalize('NFD').replace(/[̀-ͯ]/g, '').charAt(0).toUpperCase();
   return /[A-Z]/.test(ch) ? ch : '#';
 }
 
@@ -28,15 +29,19 @@ interface Props {
   contacts: Contact[];
   /** Called when the front card gets close to the end of what is loaded. */
   onNearEnd?: () => void;
+  /** Where each letter starts (server index); without it the loaded cards are used. */
+  letters?: LetterIndex[];
+  /** Loads pages until at least `count` cards are available. */
+  ensureLoaded?: (count: number) => Promise<void>;
 }
 
 /**
  * Rotary card file in the spirit of 1960s desk models: cards ride on a drum and flip
- * around its axis. Drag vertically, use the wheel, the arrow keys or the buttons; the
- * drum always comes to rest on a card. Tapping the front card opens it; swiping it left
- * or right (or ← →) files it at the back of the drum.
+ * around its axis. The page scrolls normally over it; the A–Z tabs, the arrow buttons and
+ * the keyboard turn the drum. Tapping the front card opens it; swiping it left or right
+ * (or ← →) files it at the back, so the next card comes forward.
  */
-export function Rolodex({ contacts: source, onNearEnd }: Props) {
+export function Rolodex({ contacts: source, onNearEnd, letters, ensureLoaded }: Props) {
   const navigate = useNavigate();
   // cards filed at the back with a sideways swipe, in the order they were moved (this visit only)
   const [sentBack, setSentBack] = useState<string[]>([]);
@@ -55,18 +60,8 @@ export function Rolodex({ contacts: source, onNearEnd }: Props) {
   const posRef = useRef(0);
   const target = useRef(0);
   const raf = useRef<number | null>(null);
-  const drag = useRef<{
-    x: number;
-    y: number;
-    start: number;
-    t: number;
-    v: number;
-    vx: number;
-    axis: 'x' | 'y' | null;
-    moved: boolean;
-    id: number;
-    el: HTMLElement;
-  } | null>(null);
+  const swipeXRef = useRef(0);
+  const drag = useRef<{ x: number; y: number; t: number; vx: number; moved: boolean; id: number; el: HTMLElement } | null>(null);
   const lastTick = useRef(0);
   const max = Math.max(0, contacts.length - 1);
   const current = Math.min(max, Math.max(0, Math.round(pos)));
@@ -90,7 +85,8 @@ export function Rolodex({ contacts: source, onNearEnd }: Props) {
         raf.current = null;
         return;
       }
-      apply(posRef.current + d * 0.16);
+      // long jumps (A–Z) spin fast at first, then settle like the short ones
+      apply(posRef.current + d * (Math.abs(d) > 6 ? 0.22 : 0.16));
       raf.current = requestAnimationFrame(step);
     };
     if (raf.current === null) raf.current = requestAnimationFrame(step);
@@ -114,65 +110,81 @@ export function Rolodex({ contacts: source, onNearEnd }: Props) {
     if (contacts.length && current >= contacts.length - 5) onNearEnd?.();
   }, [current, contacts.length, onNearEnd]);
 
-  // ---------------------------------------------------------------- input
-  function onPointerDown(e: PointerEvent<HTMLDivElement>) {
-    if (raf.current !== null) {
-      cancelAnimationFrame(raf.current);
-      raf.current = null;
+  // ------------------------------------------------------------- A–Z tabs
+  const tabs = useMemo(() => {
+    if (letters?.length) return letters;
+    const seen = new Map<string, LetterIndex>();
+    source.forEach((c, i) => {
+      const l = indexLetter(c);
+      const t = seen.get(l);
+      if (t) t.count++;
+      else seen.set(l, { letter: l, offset: i, count: 1 });
+    });
+    return [...seen.values()];
+  }, [letters, source]);
+  const [jumping, setJumping] = useState<string | null>(null);
+
+  async function jumpTo(tab: LetterIndex) {
+    setJumping(tab.letter);
+    try {
+      await ensureLoaded?.(tab.offset + 1);
+    } finally {
+      setJumping(null);
     }
-    drag.current = { x: e.clientX, y: e.clientY, start: posRef.current, t: performance.now(), v: 0, vx: 0, axis: null, moved: false, id: e.pointerId, el: e.currentTarget };
+    // the swiped-back cards moved: look the letter up in the order shown
+    const i = contactsRef.current.findIndex((c) => indexLetter(c) === tab.letter);
+    if (i >= 0) {
+      goTo(i);
+      setAnnounce(`Lettera ${tab.letter}: ${displayName(contactsRef.current[i]!)}`);
+    }
+  }
+  const contactsRef = useRef(contacts);
+  contactsRef.current = contacts;
+
+  // ---------------------------------------------------------------- input
+  // vertical movement belongs to the page (touch-action: pan-y); only sideways swipes are ours
+  function onPointerDown(e: PointerEvent<HTMLDivElement>) {
+    drag.current = { x: e.clientX, y: e.clientY, t: performance.now(), vx: 0, moved: false, id: e.pointerId, el: e.currentTarget };
   }
 
   function onPointerMove(e: PointerEvent<HTMLDivElement>) {
     const d = drag.current;
     if (!d) return;
-    const dy = d.y - e.clientY; // finger up → cards flip away → next card
     const dx = e.clientX - d.x;
-    if (!d.moved && Math.max(Math.abs(dx), Math.abs(dy)) > 7) {
-      // capture only once it is a drag: a plain tap must still reach the card's click.
-      // The first movement decides: vertical turns the drum, sideways files the card at the back.
+    const dy = e.clientY - d.y;
+    if (!d.moved) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 8) return;
+      if (Math.abs(dy) >= Math.abs(dx)) {
+        drag.current = null; // a scroll: let the page have it
+        return;
+      }
+      // capture only once it is a swipe: a plain tap must still reach the card's click
       d.moved = true;
-      d.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
       d.el.setPointerCapture?.(d.id);
-      if (d.axis === 'x') setSwiping(true);
+      setSwiping(true);
     }
     const now = performance.now();
-    if (d.axis === 'x') {
-      d.vx = (dx - swipeXRef.current) / Math.max(1, now - d.t); // px per ms
-      d.t = now;
-      swipeXRef.current = dx;
-      setSwipeX(dx);
-      return;
-    }
-    if (d.axis !== 'y') return;
-    const p = Math.min(max + 0.4, Math.max(-0.4, d.start + dy / STEP_PX));
-    d.v = (p - posRef.current) / Math.max(1, now - d.t); // cards per ms
+    d.vx = (dx - swipeXRef.current) / Math.max(1, now - d.t); // px per ms
     d.t = now;
-    apply(p);
+    swipeXRef.current = dx;
+    setSwipeX(dx);
   }
 
   function onPointerUp() {
     const d = drag.current;
     drag.current = null;
-    if (!d) return;
-    if (d.axis === 'x') {
-      setSwiping(false);
-      const dx = swipeXRef.current;
-      const far = Math.abs(dx) > d.el.clientWidth * SEND_BACK_RATIO;
-      const flick = Math.abs(d.vx) > 0.6 && Math.sign(d.vx) === Math.sign(dx);
-      if (far || flick) sendToBack(dx < 0 ? -1 : 1);
-      else resetSwipe();
-      return;
-    }
-    if (d.axis !== 'y') return;
-    // a flick keeps the drum spinning a few cards, like the real thing
-    goTo(posRef.current + d.v * 160);
+    if (!d?.moved) return;
+    setSwiping(false);
+    const dx = swipeXRef.current;
+    const far = Math.abs(dx) > d.el.clientWidth * SEND_BACK_RATIO;
+    const flick = Math.abs(d.vx) > 0.6 && Math.sign(d.vx) === Math.sign(dx);
+    if (far || flick) sendToBack(dx < 0 ? -1 : 1);
+    else resetSwipe();
+    // the click that follows a swipe must not open the card
+    swallowClick.current = true;
+    setTimeout(() => (swallowClick.current = false), 0);
   }
-
-  function onWheel(e: React.WheelEvent) {
-    if (Math.abs(e.deltaY) < 4) return;
-    goTo(target.current + Math.sign(e.deltaY));
-  }
+  const swallowClick = useRef(false);
 
   function onKeyDown(e: KeyboardEvent) {
     const moves: Record<string, number> = { ArrowDown: 1, ArrowUp: -1, PageDown: 5, PageUp: -5 };
@@ -190,10 +202,12 @@ export function Rolodex({ contacts: source, onNearEnd }: Props) {
       goTo(max);
     } else if (e.key === 'Enter' && contacts[current]) {
       navigate(`/contatti/${contacts[current].id}`, { viewTransition: true });
+    } else if (/^[a-z]$/i.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const tab = tabs.find((t) => t.letter === e.key.toUpperCase());
+      if (tab) void jumpTo(tab);
     }
   }
 
-  const swipeXRef = useRef(0);
   function resetSwipe() {
     swipeXRef.current = 0;
     setSwipeX(0);
@@ -217,26 +231,47 @@ export function Rolodex({ contacts: source, onNearEnd }: Props) {
   }
 
   function onCardClick(i: number, id: string) {
-    if (drag.current?.moved) return;
+    if (swallowClick.current) return;
     if (i === current) navigate(`/contatti/${id}`, { viewTransition: true });
     else goTo(i);
   }
 
   const front = contacts[current];
+  const frontLetter = front ? indexLetter(front) : null;
 
   return (
     <div className="rolodex-wrap">
+      {tabs.length > 1 && (
+        <nav className="rolo-index" aria-label="Vai alla lettera">
+          {tabs.map((t) => (
+            <button
+              key={t.letter}
+              type="button"
+              aria-current={t.letter === frontLetter ? 'true' : undefined}
+              aria-label={`Lettera ${t.letter === '#' ? 'numeri e simboli' : t.letter}, ${t.count} ${t.count === 1 ? 'biglietto' : 'biglietti'}`}
+              aria-busy={jumping === t.letter || undefined}
+              onClick={() => void jumpTo(t)}
+            >
+              {t.letter}
+            </button>
+          ))}
+        </nav>
+      )}
+
       <div
         className="rolodex"
         role="group"
         aria-roledescription="schedario rotante"
-        aria-label="Biglietti: trascina in su o in giù per girare, di lato per mandare la carta in fondo"
+        aria-label="Biglietti: scorri di lato per mandare la carta in fondo, usa le lettere o le frecce per girare"
         tabIndex={0}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onWheel={onWheel}
+        onPointerCancel={() => {
+          drag.current = null;
+          setSwiping(false);
+          resetSwipe();
+        }}
         onKeyDown={onKeyDown}
       >
         <div className="rolodex-stage">
@@ -256,6 +291,7 @@ export function Rolodex({ contacts: source, onNearEnd }: Props) {
                 key={c.id}
                 type="button"
                 className={`rolo-card${isFront ? ' is-front' : ''}`}
+                data-accent={toneFor(c.company || displayName(c))}
                 style={{
                   // the front card sits a hair closer than the one behind (no z-fighting); tilts while swiped
                   transform: sideways
@@ -265,7 +301,7 @@ export function Rolodex({ contacts: source, onNearEnd }: Props) {
                   zIndex: 1000 - Math.round(Math.abs(off) * 10) - (off < 0 ? 500 : 0),
                   // a card flipped past fades out within half a step so it never veils the front one
                   opacity: isFront && flying ? 0 : baseOpacity,
-                  viewTransitionName: isFront ? `card-${c.id}` : undefined,
+                  viewTransitionName: isFront && !sideways ? `card-${c.id}` : undefined,
                   // cards already flipped past lean over the front one: never let them take a tap
                   pointerEvents: off < -0.5 ? 'none' : undefined,
                 }}
@@ -276,7 +312,7 @@ export function Rolodex({ contacts: source, onNearEnd }: Props) {
                 <span className="rolo-tab" aria-hidden="true">
                   {indexLetter(c)}
                 </span>
-                <BusinessCard contact={c} />
+                <RoloFace contact={c} photo={Math.abs(i - current) <= PHOTO_WINDOW} />
                 {isFront && <span className="visually-hidden">Apri il contatto</span>}
               </button>
             );
@@ -309,10 +345,27 @@ export function Rolodex({ contacts: source, onNearEnd }: Props) {
           <CaretDown size={22} />
         </button>
       </div>
-      <p className="rolodex-hint muted small">Trascina in su o in giù per girare, di lato per mandare la carta in fondo.</p>
+      <p className="rolodex-hint muted small">Scorri la carta di lato per passare alla successiva, tocca una lettera per saltare.</p>
       <span className="visually-hidden" role="status">
         {announce}
       </span>
     </div>
   );
 }
+
+/**
+ * The card face: the real photo of the business card when there is one (only near the
+ * front, photos are fetched on demand), otherwise the drawn card. Both get the paper finish.
+ */
+const RoloFace = memo(function RoloFace({ contact, photo }: { contact: Contact; photo: boolean }) {
+  const img = useContactImage(contact.id, 'front', photo && contact.hasFront, contact.updatedAt);
+  if (img.url) {
+    return (
+      <span className="bcard bcard-photo">
+        <img src={img.url} alt="" draggable={false} />
+        <span className="visually-hidden">{displayName(contact)}</span>
+      </span>
+    );
+  }
+  return <BusinessCard contact={contact} />;
+});

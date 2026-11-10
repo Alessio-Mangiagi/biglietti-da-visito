@@ -11,7 +11,7 @@ const NAMES = [
   ['James', 'Whitaker', 'Northwind Traders'],
 ];
 
-test('the rotary card file turns by drag, keys and buttons and opens the front card', async ({ page }, info) => {
+test('the rotary card file: A–Z tabs, keys, sideways swipe; vertical drags scroll the page', async ({ page }, info) => {
   const res = await page.request.post('/api/auth/register', {
     data: { email: `rolo-${info.project.name}-${Date.now()}@test.it`, password: 'una-password-lunga-123', displayName: 'Rolo Prova', acceptPrivacy: true },
   });
@@ -26,21 +26,27 @@ test('the rotary card file turns by drag, keys and buttons and opens the front c
   await page.waitForTimeout(500);
   await page.screenshot({ path: `test-results/rolodex/${info.project.name}-1-inizio.png` });
 
-  // finger drag upwards: two cards
-  const drum = page.getByRole('group', { name: /Biglietti: trascina/ });
+  // a vertical drag over the card file no longer turns it
+  const drum = page.getByRole('group', { name: /Biglietti: scorri di lato/ });
   await drum.scrollIntoViewIfNeeded();
-      const box = (await drum.boundingBox())!;
+  const box = (await drum.boundingBox())!;
   const x = box.x + box.width / 2;
   const y = box.y + box.height * 0.4;
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(x, y - 60, { steps: 6 });
-  await page.screenshot({ path: `test-results/rolodex/${info.project.name}-2-trascinamento.png` });
   await page.mouse.move(x, y - 115, { steps: 6 });
   await page.mouse.up();
-  await expect(page.getByText('3 di 8')).toBeVisible();
+  await expect(page.getByText('1 di 8')).toBeVisible();
+
+  // A–Z tabs: only the letters in use, the current one marked
+  const tabs = page.getByRole('navigation', { name: 'Vai alla lettera' });
+  await expect(tabs.getByRole('button')).toHaveText(['B', 'C', 'D', 'G', 'P', 'R', 'W']);
+  await expect(tabs.getByRole('button', { name: /^Lettera B,/ })).toHaveAttribute('aria-current', 'true');
+  await tabs.getByRole('button', { name: /^Lettera R, 2 biglietti/ }).click();
+  await expect(front(/Fabio Restivo.*Apri il contatto/)).toBeVisible();
+  await expect(page.getByText('6 di 8')).toBeVisible();
   await page.waitForTimeout(700);
-  await page.screenshot({ path: `test-results/rolodex/${info.project.name}-3-dopo.png` });
+  await page.screenshot({ path: `test-results/rolodex/${info.project.name}-2-lettera-r.png` });
 
   // keyboard and buttons
   await drum.focus();
@@ -49,6 +55,8 @@ test('the rotary card file turns by drag, keys and buttons and opens the front c
   await page.getByRole('button', { name: 'Biglietto precedente' }).click();
   await expect(page.getByText('7 di 8')).toBeVisible();
   await drum.focus();
+  await page.keyboard.press('g'); // typing a letter jumps there too
+  await expect(front(/Salvatore Greco.*Apri il contatto/)).toBeVisible();
   await page.keyboard.press('Home');
   await expect(page.getByText('1 di 8')).toBeVisible();
 
@@ -59,19 +67,18 @@ test('the rotary card file turns by drag, keys and buttons and opens the front c
   await page.mouse.down();
   await page.mouse.move(fbox.x + fbox.width / 2 - 70, cy + 4, { steps: 5 });
   await page.waitForTimeout(400);
-  await page.screenshot({ path: `test-results/rolodex/${info.project.name}-4-swipe.png` }).catch(() => {});
+  await page.screenshot({ path: `test-results/rolodex/${info.project.name}-3-swipe.png` }).catch(() => {});
   await page.mouse.move(fbox.x + fbox.width / 2 - 200, cy + 8, { steps: 5 });
   await page.mouse.up();
   await expect(front(/Marta Colombo.*Apri il contatto/)).toBeVisible();
   await expect(page.getByText('1 di 8')).toBeVisible();
+  await expect(page).toHaveURL(/\/$/); // the swipe did not open the card
   await drum.focus();
   await page.keyboard.press('End');
   await expect(front(/Giulia Bianchi.*Apri il contatto/)).toBeVisible(); // now the last card
   // ← / → do the same from the keyboard
   await page.keyboard.press('Home');
   await page.keyboard.press('ArrowRight');
-  await expect(front(/Paolo De Santis.*Apri il contatto/)).toBeVisible();
-  await page.keyboard.press('Home');
   await expect(front(/Paolo De Santis.*Apri il contatto/)).toBeVisible();
 
   // order now: De Santis … Whitaker, Bianchi, Colombo — tapping the front card opens it

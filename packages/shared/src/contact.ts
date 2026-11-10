@@ -80,6 +80,9 @@ export interface Contact extends ContactInput {
   id: string;
   hasFront: boolean;
   hasBack: boolean;
+  /** Pending "get back to them" reminder (YYYY-MM-DD), null when none. */
+  followUpOn: string | null;
+  followUpNote: string;
   createdAt: string;
   updatedAt: string;
 }

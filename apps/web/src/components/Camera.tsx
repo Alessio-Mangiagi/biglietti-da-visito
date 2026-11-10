@@ -1,4 +1,4 @@
-import { Camera as CameraIcon, Images, X } from '@phosphor-icons/react';
+import { Camera as CameraIcon, CheckCircle, Images, X } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { Quad } from '../scan/geometry';
 import { captureVideo, guideToFrame, loadImage } from '../scan/image';
@@ -9,11 +9,20 @@ export interface Capture {
   guide?: Quad;
 }
 
+/** "Raffica": shoot many cards in a row, review them all at the end. */
+export interface BatchControls {
+  on: boolean;
+  count: number;
+  onToggle: () => void;
+  onDone: () => void;
+}
+
 interface Props {
   side: 'front' | 'back';
   onCapture: (c: Capture) => void;
   onClose: () => void;
   onError: (msg: string) => void;
+  batch?: BatchControls;
 }
 
 type CamState = 'starting' | 'live' | 'unavailable';
@@ -23,7 +32,7 @@ type CamState = 'starting' | 'live' | 'unavailable';
  * and muted, the page must be served over HTTPS, and the stream is stopped on unmount so
  * the camera indicator turns off. Without camera access, the native picker is used.
  */
-export function Camera({ side, onCapture, onClose, onError }: Props) {
+export function Camera({ side, onCapture, onClose, onError, batch }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const guideRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -74,14 +83,26 @@ export function Camera({ side, onCapture, onClose, onError }: Props) {
     onCapture({ canvas, guide: guideToFrame(v, g.getBoundingClientRect(), canvas.width, canvas.height) });
   }
 
-  async function pick(file: File | undefined) {
-    if (!file) return;
-    try {
-      onCapture({ canvas: await loadImage(file) });
-    } catch (err) {
-      onError((err as Error).message);
+  async function pick(files: FileList | null) {
+    // in batch mode the gallery takes many photos at once
+    for (const file of Array.from(files ?? [])) {
+      try {
+        onCapture({ canvas: await loadImage(file) });
+      } catch (err) {
+        onError((err as Error).message);
+      }
     }
   }
+
+  // "Biglietto 3 acquisito": brief confirmation after each batch shot
+  const [flash, setFlash] = useState(0);
+  const count = batch?.count ?? 0;
+  useEffect(() => {
+    if (!count) return;
+    setFlash(count);
+    const id = setTimeout(() => setFlash(0), 1200);
+    return () => clearTimeout(id);
+  }, [count]);
 
   const label = side === 'front' ? 'Fronte' : 'Retro';
 
@@ -91,7 +112,18 @@ export function Camera({ side, onCapture, onClose, onError }: Props) {
         <button type="button" className="icon-btn" aria-label="Chiudi scansione" onClick={onClose}>
           <X size={26} />
         </button>
-        <span className="scanner-side">{label}</span>
+        {batch && side === 'front' ? (
+          <div className="scan-mode" role="group" aria-label="Modalità di scansione">
+            <button type="button" aria-pressed={!batch.on} onClick={() => batch.on && batch.onToggle()}>
+              Singolo
+            </button>
+            <button type="button" aria-pressed={batch.on} onClick={() => !batch.on && batch.onToggle()}>
+              Raffica
+            </button>
+          </div>
+        ) : (
+          <span className="scanner-side">{label}</span>
+        )}
         <span style={{ width: 44 }} />
       </div>
 
@@ -101,8 +133,17 @@ export function Camera({ side, onCapture, onClose, onError }: Props) {
           <div ref={guideRef} className="guide">
             <div className="guide-corners" />
             <p className="guide-hint">
-              {state === 'starting' ? 'Avvio fotocamera…' : 'Inquadra il biglietto dentro la cornice'}
+              {state === 'starting'
+                ? 'Avvio fotocamera…'
+                : batch?.on
+                  ? 'Scatta un biglietto dopo l’altro: li rivedi tutti alla fine'
+                  : 'Inquadra il biglietto dentro la cornice'}
             </p>
+          </div>
+        )}
+        {flash > 0 && (
+          <div className="batch-flash" role="status">
+            <CheckCircle size={20} weight="fill" /> Biglietto {flash} acquisito
           </div>
         )}
         {state === 'unavailable' && (
@@ -123,12 +164,18 @@ export function Camera({ side, onCapture, onClose, onError }: Props) {
           <Images size={28} />
         </button>
         <button type="button" className="shutter" aria-label={`Scatta ${label.toLowerCase()}`} onClick={shoot} disabled={state !== 'live'} />
-        <span style={{ width: 44 }} />
+        {batch?.on && count > 0 ? (
+          <button type="button" className="batch-done" onClick={batch.onDone}>
+            Fine <span className="batch-count">{count}</span>
+          </button>
+        ) : (
+          <span style={{ width: 44 }} />
+        )}
       </div>
 
-      <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => void pick(e.target.files?.[0])} />
+      <input ref={fileRef} type="file" accept="image/*" multiple={!!batch?.on} hidden onChange={(e) => void pick(e.target.files)} />
       {/* native camera app: iOS returns a JPEG even for HEIC captures */}
-      <input ref={cameraFileRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void pick(e.target.files?.[0])} />
+      <input ref={cameraFileRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void pick(e.target.files)} />
     </div>
   );
 }

@@ -25,6 +25,15 @@ AI/OCR esterno, nessun LLM), ricerca per campi tollerante a errori e accenti.
 | `e2e` | Test Playwright su WebKit (iPhone) e Chromium (Android) |
 | `deploy` | nginx, Docker, script di provisioning dei due server, backup |
 
+### Funzioni
+
+- **Schedario rotante** (vista predefinita) con linguette A–Z, foto vera del biglietto sulle carte vicine, swipe laterale per passare alla carta successiva; in alternativa la vista **Pila**.
+- **Modalità evento**: a una fiera ogni nuovo biglietto prende nome dell'evento, data e tag (per dispositivo e utente).
+- **Scansione a raffica**: tanti biglietti di fila (o più foto dalla galleria), ritaglio automatico, OCR in coda sul telefono, revisione e «Salva tutti».
+- **Promemoria «Ricontatta il…»**: lista `/promemoria`, file calendario `.ics`, notifica push mattutina (Web Push con VAPID + cron giornaliero; su iPhone con l'app nella schermata Home).
+- **Team / rubrica condivisa** (es. Cosedil): ingresso solo con link di invito (token nel frammento URL, 7 giorni, revocabile); i colleghi vedono solo i dati del biglietto e le foto, mai note, tag, evento o promemoria; «Salva nei miei» copia il biglietto nel proprio wallet.
+- **Azioni rapide**: Chiama, WhatsApp (solo cellulari), Email, Mappa, Rubrica; scorciatoie dall'icona dell'app (Android) e schermate di avvio iOS (`apps/web/scripts/make-splash.mjs`).
+
 ### Scelte principali
 
 - **OCR locale**: motore WASM e modelli `ita`+`eng` serviti dal nostro dominio (`/ocr`), messi in cache dal service worker. Le immagini non lasciano il telefono finché l'utente non salva.

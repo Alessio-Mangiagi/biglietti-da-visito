@@ -15,6 +15,11 @@ const MyCardPage = lazy(() => import('./pages/MyCard').then((m) => ({ default: m
 const PrivacyPage = lazy(() => import('./pages/Privacy').then((m) => ({ default: m.PrivacyPage })));
 const SearchPage = lazy(() => import('./pages/Search').then((m) => ({ default: m.SearchPage })));
 const SettingsPage = lazy(() => import('./pages/Settings').then((m) => ({ default: m.SettingsPage })));
+const FollowUpsPage = lazy(() => import('./pages/FollowUps').then((m) => ({ default: m.FollowUpsPage })));
+const TeamsPage = lazy(() => import('./pages/Team').then((m) => ({ default: m.TeamsPage })));
+const TeamPage = lazy(() => import('./pages/Team').then((m) => ({ default: m.TeamPage })));
+const SharedContactPage = lazy(() => import('./pages/Team').then((m) => ({ default: m.SharedContactPage })));
+const JoinTeamPage = lazy(() => import('./pages/Team').then((m) => ({ default: m.JoinTeamPage })));
 
 const page = (el: React.ReactNode) => (
   <ChunkBoundary>
@@ -33,6 +38,8 @@ export function App() {
       <Route path="/reimposta-password" element={<ResetPasswordPage />} />
       <Route path="/conferma-email" element={<VerifyEmailPage />} />
       <Route path="/privacy" element={page(<PrivacyPage />)} />
+      {/* reachable signed out: the invite waits for the login */}
+      <Route path="/team/invito" element={page(<JoinTeamPage />)} />
       <Route
         path="/scansiona"
         element={
@@ -59,6 +66,10 @@ export function App() {
         <Route path="contatti/:id/modifica" element={page(<ContactEditPage />)} />
         <Route path="il-mio-biglietto" element={page(<MyCardPage />)} />
         <Route path="impostazioni" element={page(<SettingsPage />)} />
+        <Route path="promemoria" element={page(<FollowUpsPage />)} />
+        <Route path="team" element={page(<TeamsPage />)} />
+        <Route path="team/:teamId" element={page(<TeamPage />)} />
+        <Route path="team/:teamId/contatti/:id" element={page(<SharedContactPage />)} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

@@ -6,6 +6,7 @@ import '@fontsource/inter/600.css';
 import '@fontsource/open-sans/400.css';
 import '@fontsource/open-sans/600.css';
 import './styles/app.css';
+import './styles/features.css';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';

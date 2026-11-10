@@ -6,6 +6,7 @@ import {
   type ContactInput,
   type Page,
   type SearchQuery,
+  type WalletStats,
 } from '@cardvault/shared';
 import type pg from 'pg';
 
@@ -35,6 +36,8 @@ export interface ContactRow {
   met_on: string | null;
   favorite: boolean;
   ocr_text: string;
+  follow_up_on: string | null;
+  follow_up_note: string;
   created_at: Date;
   updated_at: Date;
   has_front: boolean;
@@ -73,6 +76,8 @@ export function toContact(r: ContactRow): Contact {
     ocrText: r.ocr_text,
     hasFront: r.has_front,
     hasBack: r.has_back,
+    followUpOn: r.follow_up_on,
+    followUpNote: r.follow_up_note,
     createdAt: r.created_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
   };
@@ -175,6 +180,43 @@ export async function deleteContact(db: Queryable, userId: string, id: string): 
   return (res.rowCount ?? 0) > 0;
 }
 
+// -------------------------------------------------------------- follow-ups
+
+export async function setFollowUp(db: Queryable, userId: string, id: string, on: string | null, note: string): Promise<Contact | null> {
+  const { rows } = await db.query<ContactRow>(
+    `WITH c AS (UPDATE contacts SET follow_up_on = $3, follow_up_note = $4
+       WHERE id = $1 AND user_id = $2 AND NOT is_self RETURNING *)
+     SELECT ${SELECT} FROM c`,
+    [id, userId, on, on ? note : ''],
+  );
+  return rows[0] ? toContact(rows[0]) : null;
+}
+
+/** Every pending reminder, soonest first (overdue ones on top). */
+export async function listFollowUps(db: Queryable, userId: string): Promise<Contact[]> {
+  const { rows } = await db.query<ContactRow>(
+    `SELECT ${SELECT} FROM contacts c
+     WHERE c.user_id = $1 AND NOT c.is_self AND c.follow_up_on IS NOT NULL
+     ORDER BY c.follow_up_on, f_norm(c.last_name), c.id LIMIT 500`,
+    [userId],
+  );
+  return rows.map(toContact);
+}
+
+/** `today` comes from the device, so "due" follows the user's own calendar day. */
+export async function walletStats(db: Queryable, userId: string, today: string): Promise<WalletStats> {
+  const { rows } = await db.query<{ total: string; this_month: string; due: string; planned: string }>(
+    `SELECT count(*) AS total,
+            count(*) FILTER (WHERE created_at >= date_trunc('month', $2::date)) AS this_month,
+            count(*) FILTER (WHERE follow_up_on <= $2::date) AS due,
+            count(*) FILTER (WHERE follow_up_on IS NOT NULL) AS planned
+     FROM contacts WHERE user_id = $1 AND NOT is_self`,
+    [userId, today],
+  );
+  const r = rows[0]!;
+  return { total: Number(r.total), thisMonth: Number(r.this_month), followUpsDue: Number(r.due), followUpsPlanned: Number(r.planned) };
+}
+
 // ------------------------------------------------------------------ search
 
 /** Below this trigram word-similarity a term is not considered a (typo) match. */
@@ -217,7 +259,8 @@ export function buildSearch(userId: string, q: SearchQuery) {
 
   const dir = q.dir === 'desc' ? 'DESC' : 'ASC';
   const order: Record<SearchQuery['sort'], string> = {
-    name: `(c.first_name = '' AND c.last_name = ''), f_norm(c.last_name) ${dir}, f_norm(c.first_name) ${dir}, f_norm(c.company) ${dir}`,
+    // same key as the A–Z tabs: surname, else first name, else company
+    name: `${NAME_KEY} ${dir}, f_norm(c.first_name) ${dir}, f_norm(c.company) ${dir}`,
     company: `(c.company = ''), f_norm(c.company) ${dir}, f_norm(c.last_name) ${dir}`,
     createdAt: `c.created_at ${dir}`,
     metOn: `c.met_on ${dir} NULLS LAST, c.created_at DESC`,
@@ -232,7 +275,25 @@ export function buildSearch(userId: string, q: SearchQuery) {
           FROM contacts c WHERE ${where.join(' AND ')}
           ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`,
     params,
+    where: where.join(' AND '),
+    orderBy,
   };
+}
+
+/** Sort key of the card file, and its index letter ('#' for digits and symbols). */
+const NAME_KEY = `f_norm(coalesce(nullif(c.last_name, ''), nullif(c.first_name, ''), c.company))`;
+const LETTER = `CASE WHEN left(${NAME_KEY}, 1) ~ '^[a-z]$' THEN upper(left(${NAME_KEY}, 1)) ELSE '#' END`;
+
+/** Where each letter starts in the name-ordered list, with the same filters as the wallet. */
+export async function letterIndex(db: Queryable, userId: string, q: SearchQuery): Promise<Array<{ letter: string; offset: number; count: number }>> {
+  const { where, orderBy, params } = buildSearch(userId, { ...q, q: undefined, sort: 'name', dir: 'asc', page: 1, pageSize: 1 });
+  const { rows } = await db.query<{ letter: string; offset: number; count: number }>(
+    `SELECT letter, (min(rn) - 1)::int AS offset, count(*)::int AS count
+     FROM (SELECT row_number() OVER (ORDER BY ${orderBy}) AS rn, ${LETTER} AS letter FROM contacts c WHERE ${where}) s
+     GROUP BY letter ORDER BY min(rn)`,
+    params.slice(0, -2), // without LIMIT/OFFSET
+  );
+  return rows;
 }
 
 export async function searchContacts(db: Queryable, userId: string, q: SearchQuery): Promise<Page<Contact>> {

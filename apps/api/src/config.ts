@@ -64,6 +64,14 @@ const EnvSchema = z.object({
   AGENTMAIL_USERNAME: z.string().default('cardvault-notifiche'),
   /** auto: required as soon as the app can send e-mail (AgentMail or SMTP). */
   EMAIL_VERIFICATION: z.enum(['auto', 'required', 'off']).default('auto'),
+
+  /** Web Push (follow-up reminders). `npx web-push generate-vapid-keys`; push is off when missing. */
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  /** mailto: or https: contact for the push services; defaults to APP_URL. */
+  VAPID_SUBJECT: z.string().optional(),
+  /** Bearer token the scheduler (Vercel Cron) sends to /api/cron/*; cron is off when missing. */
+  CRON_SECRET: z.string().min(16).optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

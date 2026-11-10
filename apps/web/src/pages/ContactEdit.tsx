@@ -9,6 +9,7 @@ import { useToast } from '../components/Toasts';
 import { api, errorMessage, fieldErrors } from '../lib/api';
 import { useContact } from '../lib/contacts';
 import { uploadPhoto } from '../lib/outbox';
+import { applyEvent, useEventMode } from '../lib/event';
 import { createContact, today, type Duplicate } from '../lib/save';
 import { useSession } from '../lib/session';
 import { findCard, loadImage, toJpeg, warp } from '../scan/image';
@@ -23,7 +24,9 @@ export function ContactEditPage() {
   const qc = useQueryClient();
   const { status } = useSession();
   const existing = useContact(id);
-  const [form, setForm] = useState<ContactInput | null>(isNew ? blank() : null);
+  const { event } = useEventMode();
+  // a card typed in during an event belongs to it too
+  const [form, setForm] = useState<ContactInput | null>(isNew ? () => applyEvent(blank(), event) : null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);

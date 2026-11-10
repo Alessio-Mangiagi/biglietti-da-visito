@@ -1,13 +1,16 @@
 import { PASSWORD_MIN, type User } from '@cardvault/shared';
-import { DownloadSimple, SignOut, UploadSimple } from '@phosphor-icons/react';
+import { BellRinging, CaretRight, DownloadSimple, Flag, IdentificationCard, SignOut, UploadSimple, UsersThree } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
+import { EventDialog } from '../components/EventDialog';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toasts';
 import { api, errorMessage, saveResponse } from '../lib/api';
+import { useEventMode } from '../lib/event';
 import { clearLocalData } from '../lib/idb';
 import { useSession } from '../lib/session';
+import { PushBox } from './FollowUps';
 import { useOutbox } from './Wallet';
 
 type Theme = 'system' | 'light' | 'dark';
@@ -58,6 +61,8 @@ export function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deletePw, setDeletePw] = useState('');
   const [deleteError, setDeleteError] = useState('');
+  const { event, stop: stopEvent } = useEventMode();
+  const [eventOpen, setEventOpen] = useState(false);
 
   useEffect(() => {
     if (hash) document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' });
@@ -132,6 +137,51 @@ export function SettingsPage() {
   return (
     <div className="main-narrow stack" style={{ margin: '0 auto' }}>
       <h1>Impostazioni</h1>
+
+      <nav className="panel panel-flush" aria-label="Scorciatoie">
+        <ul className="menu-list">
+          <li>
+            <Link to="/il-mio-biglietto">
+              <IdentificationCard size={22} aria-hidden="true" /> Il mio biglietto <CaretRight size={18} aria-hidden="true" />
+            </Link>
+          </li>
+          <li>
+            <Link to="/team?tutti">
+              <UsersThree size={22} aria-hidden="true" /> Team <CaretRight size={18} aria-hidden="true" />
+            </Link>
+          </li>
+          <li>
+            <Link to="/promemoria">
+              <BellRinging size={22} aria-hidden="true" /> Da ricontattare <CaretRight size={18} aria-hidden="true" />
+            </Link>
+          </li>
+        </ul>
+      </nav>
+
+      <Section id="evento" title="Modalità evento">
+        {event ? (
+          <div className="spread">
+            <span className="inline">
+              <Flag size={20} weight="fill" aria-hidden="true" /> In corso: <strong>{event.name}</strong>
+            </span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={stopEvent}>
+              Termina
+            </button>
+          </div>
+        ) : (
+          <div className="spread">
+            <span className="muted small">Ai convegni e alle fiere: ogni nuovo biglietto prende nome, data e tag dell’evento.</span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEventOpen(true)}>
+              <Flag size={16} /> Attiva
+            </button>
+          </div>
+        )}
+        <EventDialog open={eventOpen} onClose={() => setEventOpen(false)} />
+      </Section>
+
+      <Section id="notifiche" title="Notifiche">
+        <PushBox />
+      </Section>
 
       <Section title="Profilo">
         <form className="stack" onSubmit={saveName}>
