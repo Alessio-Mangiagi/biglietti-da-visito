@@ -5,3 +5,4 @@ export * from './social';
 export * from './vcard';
 export * from './csv';
 export * from './team';
+export * from './sheet';

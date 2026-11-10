@@ -1,5 +1,5 @@
 import { PASSWORD_MIN, type User } from '@cardvault/shared';
-import { BellRinging, CaretRight, DownloadSimple, Flag, IdentificationCard, SignOut, UploadSimple, UsersThree } from '@phosphor-icons/react';
+import { BellRinging, CaretRight, DownloadSimple, FileXls, Flag, IdentificationCard, SignOut, UploadSimple, UsersThree } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
@@ -155,6 +155,11 @@ export function SettingsPage() {
               <BellRinging size={22} aria-hidden="true" /> Da ricontattare <CaretRight size={18} aria-hidden="true" />
             </Link>
           </li>
+          <li>
+            <Link to="/importa">
+              <FileXls size={22} aria-hidden="true" /> Importa da Excel <CaretRight size={18} aria-hidden="true" />
+            </Link>
+          </li>
         </ul>
       </nav>
 
@@ -241,6 +246,9 @@ export function SettingsPage() {
 
       <Section id="importa" title="Importa ed esporta">
         <div className="stack-sm">
+          <Link to="/importa" className="btn btn-primary">
+            <FileXls size={18} /> Importa da Excel o CSV
+          </Link>
           <label className="btn btn-secondary" aria-disabled={importing}>
             <UploadSimple size={18} /> {importing ? 'Importazione…' : 'Importa file vCard (.vcf)'}
             <input type="file" accept=".vcf,text/vcard,text/x-vcard" hidden disabled={importing} onChange={(e) => void importVcf(e.target.files?.[0])} />

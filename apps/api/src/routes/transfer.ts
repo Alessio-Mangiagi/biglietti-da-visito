@@ -34,6 +34,11 @@ const VCardQuery = z.object({
 });
 
 const ImportQuery = z.object({ skipDuplicates: z.enum(['true', 'false']).default('true') });
+export const MAX_IMPORT_ROWS = 500;
+const ImportRowsBody = z.object({
+  contacts: z.array(z.unknown()).min(1).max(MAX_IMPORT_ROWS),
+  skipDuplicates: z.boolean().default(true),
+});
 
 /** RFC 6266 filename with an ASCII fallback. */
 export function attachment(name: string): string {
@@ -128,22 +133,43 @@ export async function transferRoutes(app: FastifyInstance) {
     const raw = parseVCards(req.body);
     if (!raw.length) throw badRequest('Nessun contatto trovato nel file');
     if (raw.length > MAX_IMPORT) throw badRequest(`Massimo ${MAX_IMPORT} contatti per importazione`);
+    return importContacts(req.userId, raw, skipDuplicates === 'true');
+  });
+
+  /** Rows from the "Importa da Excel" sheet, already mapped to contacts by the client. */
+  app.post(
+    '/contacts/import/rows',
+    { bodyLimit: 2 * 1024 * 1024, config: { rateLimit: { max: 60, timeWindow: '1 minute' } } },
+    async (req) => {
+      const { contacts, skipDuplicates } = parse(ImportRowsBody, req.body);
+      return importContacts(req.userId, contacts, skipDuplicates);
+    },
+  );
+
+  async function importContacts(userId: string, raw: unknown[], skipDuplicates: boolean) {
     let created = 0;
     let skipped = 0;
     const errors: Array<{ index: number; message: string }> = [];
+    const skippedIndexes: number[] = [];
     for (const [index, r] of raw.entries()) {
       const parsed = ContactInputSchema.safeParse(r);
       if (!parsed.success) {
         errors.push({ index, message: parsed.error.issues[0]?.message ?? 'Contatto non valido' });
         continue;
       }
-      if (skipDuplicates === 'true' && (await findDuplicates(db, req.userId, parsed.data)).length) {
-        skipped++;
+      const c = parsed.data;
+      if (!c.firstName && !c.lastName && !c.company && !c.emails.length && !c.phones.length) {
+        errors.push({ index, message: 'Contatto vuoto' });
         continue;
       }
-      await insertContact(db, req.userId, parsed.data);
+      if (skipDuplicates && (await findDuplicates(db, userId, c)).length) {
+        skipped++;
+        skippedIndexes.push(index);
+        continue;
+      }
+      await insertContact(db, userId, c);
       created++;
     }
-    return { created, skipped, errors };
-  });
+    return { created, skipped, skippedIndexes, errors };
+  }
 }

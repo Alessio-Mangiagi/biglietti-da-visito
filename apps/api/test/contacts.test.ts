@@ -199,7 +199,32 @@ describe('transfer', () => {
 
     const extra = 'BEGIN:VCARD\r\nVERSION:3.0\r\nN:Bianchi;Luca\r\nEMAIL:luca@bianchi.it\r\nEND:VCARD\r\n';
     const imp = await ctx.app.inject({ method: 'POST', url: '/api/contacts/import', headers: { ...auth(u.token), 'content-type': 'text/vcard' }, payload: vcf.body + extra });
-    expect(imp.json()).toEqual({ created: 1, skipped: 1, errors: [] });
+    expect(imp.json()).toEqual({ created: 1, skipped: 1, skippedIndexes: [0], errors: [] });
+  });
+
+  it('imports spreadsheet rows as JSON, skipping duplicates and reporting bad rows', async () => {
+    const u = await registerUser(ctx.app);
+    await create({ firstName: 'Anna', lastName: 'Rossi', emails: ['anna@rossi.it'] }, u.token);
+    const rows = (contacts: unknown[], skipDuplicates = true) =>
+      ctx.app.inject({ method: 'POST', url: '/api/contacts/import/rows', headers: auth(u.token), payload: { contacts, skipDuplicates } });
+    const res = await rows([
+      { firstName: 'Anna', emails: ['ANNA@rossi.it'] },
+      { firstName: 'Fabio', lastName: 'Restivo', company: 'Edil Restivo', phones: [{ type: 'mobile', value: '+39 333 123 4567' }] },
+      { firstName: 'Bad', emails: ['non-una-mail'] },
+      {},
+    ]);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toMatchObject({ created: 1, skipped: 1, skippedIndexes: [0] });
+    expect(body.errors.map((e: { index: number }) => e.index)).toEqual([2, 3]);
+    const list = await ctx.app.inject({ method: 'GET', url: '/api/contacts?q=Restivo', headers: auth(u.token) });
+    expect(list.json().items[0]).toMatchObject({ company: 'Edil Restivo', phones: [{ type: 'mobile' }] });
+    // duplicates can be forced in
+    expect((await rows([{ firstName: 'Anna', emails: ['anna@rossi.it'] }], false)).json()).toMatchObject({ created: 1, skipped: 0 });
+    // too many rows in one request
+    expect((await rows(Array.from({ length: 501 }, () => ({ firstName: 'X' })))).statusCode).toBe(400);
+    // signed out
+    expect((await ctx.app.inject({ method: 'POST', url: '/api/contacts/import/rows', payload: { contacts: [{ firstName: 'X' }] } })).statusCode).toBe(401);
   });
 
   it('opens a vCard through a short-lived signed link (iPhone)', async () => {

@@ -349,9 +349,10 @@ function EmptyWallet() {
           <PencilSimple size={18} /> Inserisci a mano
         </Link>
       </div>
-      <Link to="/impostazioni#importa" className="small">
-        <UploadSimple size={14} /> Importa da file vCard
-      </Link>
+      <p className="small inline" style={{ justifyContent: 'center' }}>
+        <UploadSimple size={14} aria-hidden="true" /> Hai già un elenco? <Link to="/importa">Importa da Excel</Link> o da{' '}
+        <Link to="/impostazioni#importa">file vCard</Link>
+      </p>
     </div>
   );
 }

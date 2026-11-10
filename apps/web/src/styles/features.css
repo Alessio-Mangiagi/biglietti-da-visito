@@ -582,3 +582,201 @@ span.result-main {
     font-size: 0.66rem;
   }
 }
+
+/* ------------------------------------------------------ import from Excel */
+.import-steps {
+  max-width: none;
+  margin: 0 0 1.25rem;
+}
+.import-steps li > .btn {
+  grid-column: 2;
+  justify-self: start;
+  margin-top: 0.6rem;
+}
+@media (min-width: 720px) {
+  .import-steps li > .btn {
+    grid-column: auto;
+    justify-self: center;
+  }
+}
+.dropzone {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  padding: 1.75rem 1rem;
+  border: 2px dashed var(--border-input);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.3s var(--ease-out),
+    background-color 0.3s var(--ease-out);
+}
+.dropzone svg {
+  color: var(--primary);
+}
+.dropzone strong {
+  font: 500 1.05rem/1.2 var(--font-display);
+  color: var(--text-strong);
+}
+.dropzone:hover,
+.dropzone.is-over {
+  border-color: var(--focus);
+  background: var(--ice);
+}
+.dropzone:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.import-alt {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  margin-top: 1.25rem;
+}
+.import-alt .field {
+  width: 100%;
+}
+.import-alt .label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.import-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.import-result > svg {
+  color: var(--green-text);
+}
+.import-result > span {
+  flex: 1 1 14rem;
+}
+.import-summary {
+  margin-bottom: 0.75rem;
+}
+.import-summary + .alert,
+.import-summary ~ .alert {
+  margin: 0 0 0.75rem;
+}
+.sheet-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  -webkit-overflow-scrolling: touch;
+}
+.sheet-scroll:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.sheet {
+  width: 100%;
+  min-width: 1080px;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.sheet th,
+.sheet td {
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+.sheet thead th {
+  position: sticky;
+  top: 0;
+  padding: 0.55rem 0.5rem;
+  background: var(--bg-alt);
+  color: var(--text-muted);
+  font: 600 0.72rem/1.2 var(--font-ui);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sheet tbody tr:nth-child(even) {
+  background: var(--bg);
+}
+.sheet tbody tr:hover {
+  background: var(--ice);
+}
+.sheet tbody tr.has-error {
+  background: var(--warning-bg);
+}
+.sheet .sheet-n {
+  width: 2.5rem;
+  padding: 0 0.5rem;
+  color: var(--text-soft);
+  font: 500 0.78rem/1 var(--font-ui);
+  text-align: right;
+}
+.sheet-input {
+  width: 100%;
+  min-width: 7.5rem;
+  min-height: 40px;
+  padding: 0.4rem 0.5rem;
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+.sheet-input:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  background: var(--surface);
+}
+.sheet-status {
+  min-width: 12rem;
+  padding: 0.35rem 0.5rem !important;
+  font-size: 0.8rem;
+}
+.sheet-ok {
+  color: var(--green-text);
+}
+.sheet-extra {
+  display: block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.import-more {
+  margin: 0.5rem 0 0.25rem;
+}
+.import-bar {
+  position: sticky;
+  bottom: calc(var(--bottomnav-h) + var(--safe-bottom) + 0.5rem);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card-hover);
+}
+@media (min-width: 900px) {
+  .import-bar {
+    bottom: 1rem;
+  }
+}
+.sheet .sheet-n {
+  width: 3.5rem;
+}
+.sheet-n-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
