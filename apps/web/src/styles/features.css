@@ -530,6 +530,32 @@ span.result-main {
   border-style: dashed;
   color: var(--primary);
 }
+/* wallet: always-visible way into the Excel import */
+.import-cta {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-top: 1.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--primary);
+  text-decoration: none;
+}
+.import-cta > span {
+  display: grid;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+.import-cta strong {
+  color: var(--text);
+}
+.import-cta:hover,
+.import-cta:focus-visible {
+  border-color: var(--primary);
+}
 .shared-by {
   padding-left: 0.25rem;
   color: var(--text-soft);

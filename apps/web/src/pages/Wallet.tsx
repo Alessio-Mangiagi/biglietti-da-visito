@@ -2,8 +2,10 @@ import { displayName } from '@cardvault/shared';
 import {
   AddressBookTabs,
   BellRinging,
+  CaretRight,
   Cards,
   CheckCircle,
+  FileXls,
   Flag,
   MagnifyingGlass,
   PencilSimple,
@@ -280,6 +282,14 @@ export function WalletPage() {
                 )}
               </>
             )}
+            <Link to="/importa" className="import-cta">
+              <FileXls size={28} aria-hidden="true" />
+              <span>
+                <strong>Importa da Excel</strong>
+                <span className="muted small">Scarica il modello, compilalo con i tuoi contatti e caricalo qui.</span>
+              </span>
+              <CaretRight size={18} aria-hidden="true" />
+            </Link>
           </>
         )}
       </div>
