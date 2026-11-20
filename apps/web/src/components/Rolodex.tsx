@@ -318,12 +318,6 @@ export function Rolodex({ contacts: source, onNearEnd, letters, ensureLoaded }: 
             );
           })}
         </div>
-
-        {/* the hardware: drum rod, knobs, base */}
-        <div className="rolodex-rod" aria-hidden="true" />
-        <div className="rolodex-knob left" aria-hidden="true" />
-        <div className="rolodex-knob right" aria-hidden="true" />
-        <div className="rolodex-base" aria-hidden="true" />
       </div>
 
       <div className="rolodex-controls">
