@@ -58,6 +58,21 @@ age -d -i cardvault-backup.key cardvault-AAAAMMGG-hhmmss.dump.age > db.dump
 pg_restore --clean --if-exists -d cardvault db.dump
 ```
 
+### 1b. Portare i dati da Vercel/Neon (se l'app è già in uso)
+
+Prima di avviare l'API sul server APP (il database deve essere ancora vuoto), sul server DB:
+
+```bash
+ssh root@DB "SOURCE_URL='<connection string Neon>' /root/deploy/db-server/import-from-neon.sh"
+```
+
+La stringa Neon è in Vercel → Storage → cardvault-db → `.env.local` (`DATABASE_URL`). Lo script copia
+utenti, biglietti, foto, team e promemoria, poi confronta il numero di righe tabella per tabella.
+Fallo quando nessuno usa l'app, poi punta tutti al nuovo indirizzo.
+
+**Sul server APP servono gli stessi `IMAGE_ENCRYPTION_KEY` (obbligatorio: le foto sono cifrate con
+quella chiave) e `JWT_SECRET` (altrimenti tutti devono rifare il login) di Vercel.**
+
 ## 2. Server APP
 
 ```bash
@@ -69,11 +84,15 @@ ssh root@APP 'nano /opt/cardvault/.env.production'
 
 In `.env.production`: `DATABASE_URL` (dallo step 1), `JWT_SECRET` (`openssl rand -base64 48`),
 `IMAGE_ENCRYPTION_KEY` (`openssl rand -base64 32` — **conservane una copia sicura**: serve a decifrare
-le foto), `APP_URL`, `SMTP_URL`, `MAIL_FROM`.
+le foto), `APP_URL`, `SMTP_URL`, `MAIL_FROM`. Per le notifiche dei promemoria anche `VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY` e `CRON_SECRET`: `setup.sh` installa un cron (`/etc/cron.d/cardvault-reminders`,
+ogni mattina alle 07:00 ora del server) che fa quello che su Vercel fa Vercel Cron.
 
 ## 3. Rilascio
 
-Dal PC di sviluppo (servono pnpm, Docker e accesso SSH):
+Dal PC di sviluppo (servono pnpm e accesso SSH; su Windows basta Git Bash). Se sul PC c'è Docker
+l'immagine dell'API si costruisce lì, altrimenti sul server (`DEPLOY_BUILD=local|remote` per forzare).
+Se `DEPLOY_HOST` è un IP, `PUBLIC_HOST=<dominio>` indica dove fare il controllo finale:
 
 ```bash
 VITE_PRIVACY_CONTROLLER="Cosedil S.p.A., ..." VITE_PRIVACY_EMAIL=privacy@... \

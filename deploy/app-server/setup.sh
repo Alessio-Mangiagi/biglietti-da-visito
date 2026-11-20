@@ -3,7 +3,7 @@
 # Run as root:   DOMAIN=cardvault.example.it EMAIL=admin@example.it ./setup.sh
 set -euo pipefail
 : "${DOMAIN:?set DOMAIN}"
-: "${EMAIL:?set EMAIL for Let's Encrypt}"
+: "${EMAIL:?set EMAIL for the Lets Encrypt account}"
 HERE=$(cd "$(dirname "$0")" && pwd)
 
 echo "==> packages"
@@ -39,6 +39,21 @@ fi
 nginx -t && systemctl reload nginx
 # renewals reload nginx
 echo 'deploy-hook = systemctl reload nginx' >> /etc/letsencrypt/cli.ini
+
+echo "==> daily reminders (what Vercel Cron does on Vercel)"
+cat > /usr/local/bin/cardvault-reminders <<'EOF'
+#!/usr/bin/env bash
+# Calls the API's reminder job with CRON_SECRET from .env.production (no-op if it is not set).
+set -euo pipefail
+SECRET=$(grep -E '^CRON_SECRET=' /opt/cardvault/.env.production | cut -d= -f2- | tr -d "\"'\r")
+[ -n "$SECRET" ] || { echo "CRON_SECRET non impostato: promemoria spenti"; exit 0; }
+curl -fsS -H "Authorization: Bearer $SECRET" http://127.0.0.1:3000/api/cron/reminders; echo
+EOF
+chmod 750 /usr/local/bin/cardvault-reminders
+cat > /etc/cron.d/cardvault-reminders <<'EOF'
+# every morning at 07:00 server time (UTC on a fresh Ubuntu = 08:00/09:00 in Italy)
+0 7 * * * root /usr/local/bin/cardvault-reminders >> /var/log/cardvault-reminders.log 2>&1
+EOF
 
 echo "==> firewall (the API port 3000 stays on localhost)"
 ufw default deny incoming
