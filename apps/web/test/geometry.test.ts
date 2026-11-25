@@ -62,6 +62,90 @@ describe('detectCard', () => {
   });
 });
 
+/** Harder synthetic photos: background, card tone, noise, uneven light, rounded corners, a logo. */
+function photo(
+  quad: Quad,
+  o: { bg: number; card: number; noise?: number; light?: number; round?: number; logo?: boolean; clutter?: boolean; shadow?: boolean },
+): Gray {
+  const w = 480;
+  const h = 360;
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+  const depth = (x: number, y: number) => {
+    let m = Infinity;
+    for (let i = 0; i < 4; i++) {
+      const a = quad[i]!;
+      const b = quad[(i + 1) % 4]!;
+      m = Math.min(m, ((b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x)) / Math.hypot(b.x - a.x, b.y - a.y));
+    }
+    return m;
+  };
+  const r = o.round ?? 0;
+  const inside = (x: number, y: number) => {
+    const d = depth(x, y);
+    if (d < 0) return false;
+    // rounded corners: cut a quarter circle at each corner
+    return !r || quad.every((c) => Math.hypot(x - c.x, y - c.y) > r * 0.45 || d > r * 0.6);
+  };
+  const data = new Uint8ClampedArray(w * h);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      let v = o.bg;
+      if (inside(x, y)) {
+        v = o.card;
+        // a dark logo starting just inside the left edge
+        if (o.logo && x > quad[0].x + 14 && x < quad[0].x + 90 && y > 150 && y < 210) v = 255 - o.card;
+      } else if (o.clutter && (x < 60 || (y > 330 && x > 150 && x < 300))) v = o.bg + 90;
+      // soft drop shadow down and to the right, fading over ~10 px
+      else if (o.shadow && depth(x - 5, y - 5) > -12) v = o.bg - 30 * Math.exp(Math.min(0, depth(x - 5, y - 5)) / 4);
+      data[y * w + x] = v + (x / w - 0.5) * (o.light ?? 0) + (rnd() - 0.5) * (o.noise ?? 10);
+    }
+  return { data, width: w, height: h };
+}
+
+describe('detectCard on harder photos', () => {
+  const card: Quad = [{ x: 105, y: 92 }, { x: 382, y: 78 }, { x: 392, y: 252 }, { x: 112, y: 268 }];
+  const near = (found: Quad | null, eps = 3) => {
+    expect(found).not.toBeNull();
+    found!.forEach((p, i) => {
+      expect(Math.abs(p.x - card[i]!.x)).toBeLessThan(eps);
+      expect(Math.abs(p.y - card[i]!.y)).toBeLessThan(eps);
+    });
+  };
+
+  it('white card on a light desk with uneven light', () => near(detectCard(photo(card, { bg: 170, card: 225, light: 80, noise: 30 }))));
+  it('rounded corners: the corners land where the straight sides meet', () => near(detectCard(photo(card, { bg: 60, card: 235, round: 16 }))));
+  it('a dark logo next to the edge does not pull the side inwards', () => near(detectCard(photo(card, { bg: 50, card: 230, logo: true }))));
+  it('dark card on a light table', () => near(detectCard(photo(card, { bg: 215, card: 45 }))));
+  it('light card on a light table with a soft shadow', () => near(detectCard(photo(card, { bg: 200, card: 238, shadow: true, noise: 16 }))));
+  it('a navy stripe along the edge, as dark as the desk, stays on the card (colour edges)', () => {
+    // in gray the stripe matches the desk; only the blue-yellow channel sets them apart
+    const lum = photo(card, { bg: 50, card: 240, noise: 8 });
+    const by = photo(card, { bg: 125, card: 127, noise: 4 });
+    for (let y = 0; y < 360; y++)
+      for (let x = 0; x < 480; x++) {
+        const i = y * 480 + x;
+        // the stripe: the first 16 px of the card from its left side
+        const a = card[0];
+        const b = card[3];
+        const t = (y - a.y) / (b.y - a.y);
+        const left = a.x + (b.x - a.x) * t;
+        if (t > 0.02 && t < 0.98 && x >= left + 1 && x < left + 16) {
+          lum.data[i] = 55;
+          by.data[i] = 167;
+        }
+      }
+    near(detectCard(lum, undefined, [by]));
+  });
+  it('snaps the guide frame onto the card among other objects', () => {
+    const guide = card.map((p, i) => ({ x: p.x + (i % 2 ? 14 : -12), y: p.y + (i < 2 ? -10 : 13) })) as Quad;
+    near(detectCard(photo(card, { bg: 70, card: 225, clutter: true }), guide));
+  });
+  it('gives up on noise instead of inventing a card', () => {
+    expect(detectCard(photo(card, { bg: 128, card: 128, noise: 60 }))).toBeNull();
+  });
+});
+
 describe('warp', () => {
   it('straightens the card into a rectangle of the card ratio', () => {
     const quad: Quad = [{ x: 60, y: 50 }, { x: 330, y: 70 }, { x: 320, y: 235 }, { x: 50, y: 215 }];

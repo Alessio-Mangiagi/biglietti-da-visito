@@ -1,4 +1,4 @@
-import { detectCard, enhanceForOcr, insetQuad, scaleQuad, toGray, warpRGBA, warpSize, type Quad } from './geometry';
+import { detectCard, enhanceForOcr, insetQuad, scaleQuad, toChroma, toGray, warpRGBA, warpSize, type Quad } from './geometry';
 
 /**
  * iOS Safari refuses canvases above ~16.7 MP and runs out of memory well before:
@@ -70,13 +70,19 @@ export function guideToFrame(video: HTMLVideoElement, guide: DOMRect, frameW: nu
   return [map(guide.left, guide.top), map(guide.right, guide.top), map(guide.right, guide.bottom), map(guide.left, guide.bottom)];
 }
 
-/** Card corners: automatic detection on a small copy, otherwise `fallback` or a 6 % inset. */
+/**
+ * Card corners: automatic detection on a small copy, otherwise `fallback` or a 6 % inset.
+ * `fallback` (the guide frame, or corners placed by hand) is also a hint the detector
+ * snaps onto the nearby edges.
+ */
 export function findCard(c: HTMLCanvasElement, fallback?: Quad): { quad: Quad; detected: boolean } {
   const k = fitScale(c.width, c.height, 480);
   const small = makeCanvas(c.width * k, c.height * k);
   const sctx = ctx2d(small);
   sctx.drawImage(c, 0, 0, small.width, small.height);
-  const quad = detectCard(toGray(sctx.getImageData(0, 0, small.width, small.height)));
+  const hint = fallback ? scaleQuad(fallback, k) : undefined;
+  const pixels = sctx.getImageData(0, 0, small.width, small.height);
+  const quad = detectCard(toGray(pixels), hint, toChroma(pixels));
   if (quad) return { quad: scaleQuad(quad, 1 / k), detected: true };
   return { quad: fallback ?? insetQuad(c.width, c.height), detected: false };
 }
