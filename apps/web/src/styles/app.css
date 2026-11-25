@@ -1137,11 +1137,39 @@ mark {
 /* crop editor */
 .crop {
   position: relative;
-  touch-action: none;
+  /* the page scrolls over the photo; a touch on a corner is cancelled in CropEditor */
+  touch-action: manipulation;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
   margin: 0 auto;
   max-width: 100%;
+}
+.crop.is-dragging {
+  touch-action: none;
+}
+.crop-handle.is-active {
+  fill: rgba(255, 255, 255, 0.6);
+}
+.crop .crop-loupe {
+  position: absolute;
+  top: 8px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.crop .crop-loupe.left {
+  left: 8px;
+}
+.crop .crop-loupe.right {
+  right: 8px;
+}
+.crop .crop-loupe.low {
+  top: auto;
+  bottom: 8px;
 }
 .crop img,
 .crop canvas {

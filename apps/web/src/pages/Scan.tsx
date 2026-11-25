@@ -220,7 +220,7 @@ export default function ScanPage() {
               detected={raw.detected}
               onChange={(quad) => setRaw({ ...raw, quad })}
               onRotate={rotateRaw}
-              onAuto={() => setRaw({ ...raw, ...findCard(raw.canvas) })}
+              onAuto={() => setRaw({ ...raw, ...findCard(raw.canvas, raw.quad) })}
               onConfirm={confirmCrop}
             />
             <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: '0.75rem' }} onClick={() => setStep('camera')}>
